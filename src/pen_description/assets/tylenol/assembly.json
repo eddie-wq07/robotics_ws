@@ -51,9 +51,9 @@
     },
     "T_jig_bottle": {
       "xyz_m": [
-        1.79133717e-05,
-        0.005,
-        0.1044342701
+        2.5506233710538094e-05,
+        0.004965691224177105,
+        0.10693402313907167
       ],
       "quaternion_xyzw": [
         -0.5,
@@ -64,9 +64,9 @@
     },
     "T_jig_holder": {
       "xyz_m": [
-        0.0,
-        0.0149,
-        0.0725
+        7.592862010538095e-06,
+        0.014865691224177104,
+        0.07499975303907166
       ],
       "quaternion_xyzw": [
         0.7071067811865475,
@@ -76,7 +76,7 @@
       ]
     },
     "camera_evidence": "/home/ubuntu/robotics_setup/validation/tylenol-assembly/camera.jpg",
-    "registration_status": "CAD hole alignment; bottle pose and clocking inferred from camera, unmeasured",
+    "registration_status": "Operator-confirmed CAD placement; mounting plate bottom seated on jig ledge using one total 2.5 mm robot-Z correction.",
     "source_body_axis_window_m": [
       -0.011,
       0.035
@@ -87,29 +87,29 @@
     "holder_inner_radius_m": 0.028,
     "holder_hole_centers_jig_m": [
       [
-        -0.046,
-        -0.007,
-        0.0725
+        -0.04599240713798946,
+        -0.007034308775822895,
+        0.07499975303907166
       ],
       [
-        -0.046,
-        0.007,
-        0.0725
+        -0.04599240713798946,
+        0.006965691224177105,
+        0.07499975303907166
       ],
       [
-        0.046,
-        -0.007,
-        0.0725
+        0.04600759286201054,
+        -0.007034308775822895,
+        0.07499975303907166
       ],
       [
-        0.046,
-        0.007,
-        0.0725
+        0.04600759286201054,
+        0.006965691224177105,
+        0.07499975303907166
       ]
     ],
     "holder_unit_conversion": 0.001,
     "holder_hole_diameter_m": 0.0035,
-    "holder_mounting_hole_alignment_error_m": 3e-10,
+    "holder_mounting_hole_alignment_error_m": 3.513891933421872e-05,
     "body_circle_fit_source_window_m": [
       -0.01,
       0.02

@@ -129,10 +129,11 @@ destroyed. Physical trajectories must contain the new posture validation;
 older artifacts must be regenerated. These changes require a controller/driver
 restart and do not constitute physical qualification of the modified command path.
 
-## Cold-start pen warmup
+## Pen warmup
 
 The UI's **Warm up pen · 30s** button calls `/pen/warmup` (`std_srvs/srv/Trigger`).
-Use it only with a cold pen: a hot pen can extrude on that first press.
+It can be requested with a cold or hot pen; a hot pen may start extruding on that first press.
+The button stays available and explains when an active operation must be stopped first.
 The executor checks hardware identity, an active GPIO controller, an inactive
 Cartesian controller, and stationary joint feedback. It issues one 0.2-second
 press and releases, then waits until 30 seconds from the press. No arm target,

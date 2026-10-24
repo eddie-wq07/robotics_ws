@@ -51,8 +51,8 @@ app.innerHTML = `<div class="assembly-page">
     <progress id="operation-progress" max="1" aria-label="Operation progress"></progress>
   </section>
   <footer class="assembly-playback">
-    <button id="warmup" title="Cold pen only: press and release once, then wait 30 seconds. An already-hot pen may extrude on the first press." disabled>Warm up pen · 30s</button>
-    <span class="warmup-note">Cold pen only</span>
+    <button id="warmup" title="Press and release the pen button, then wait 30 seconds. An already-hot pen may start extruding.">Warm up pen · 30s</button>
+    <span class="warmup-note">Optional · may extrude if hot</span>
     <button id="execute" class="primary">Execute</button><button id="stop" disabled>Stop</button>
     <button id="play" class="primary" disabled>Play</button>
     <select id="rate" aria-label="Playback speed"><option value="1">1×</option><option value="10" selected>10×</option><option value="30">30×</option></select>
@@ -172,7 +172,7 @@ function updateOperation(state) {
 setInterval(()=>{if(operation?.running)renderOperation();},250);
 function controls() {
   $('#execute').disabled = false;
-  $('#warmup').disabled = busy || active || warmupPending || homePending || executePending || mode==='preview';
+  $('#warmup').disabled = false;
   $('#go-home').disabled = false;
   $('#stop').disabled = !active && !busy && !playing && !warmupPending && !homePending && !executePending;
   $('#play').disabled = !robotPreview || busy || active;
@@ -436,9 +436,12 @@ $('#execute').onclick=async()=>{
   finally{executePending=false;controls();}
 };
 $('#warmup').onclick=async()=>{
-  if(busy || active || warmupPending || homePending || executePending || mode==='preview')return;
+  if(warmupPending){message('Pen warmup is already starting.');return;}
+  if(active || homePending || executePending){message('Stop the current operation before warming the pen.');return;}
+  if(busy){message('Wait for preparation to finish, or press Stop, then warm the pen.');return;}
+  if(mode==='preview'){message('Pen warmup requires the connected real or simulated executor.');return;}
   warmupPending=true;playing=false;$('#play').textContent='Play';controls();
-  startOperation('Pen warmup','Starting cold-pen warmup — one press, then a 30-second wait.');
+  startOperation('Pen warmup','Pressing and releasing the pen button, then waiting 30 seconds.');
   try{
     const result=await api('/api/warmup',{});
     operation.jobId=result.id;operation.detail=result.message;active=result.state==='executing';renderOperation();

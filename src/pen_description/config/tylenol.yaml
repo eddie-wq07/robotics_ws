@@ -16,7 +16,7 @@ T_world_surface:
   xyz_m:
   - 0.5163795282960818
   - -0.0023436336434715056
-  - 0.05854884030054029
+  - 0.06104884030054029
   quaternion_xyzw:
   - -0.006862966350695564
   - -0.001513895153638914
@@ -53,7 +53,7 @@ T_flange_holder:
   - 0.0
   - 0.7071067811865476
 T_holder_pen:
-  stand_off_m: 0.0015
+  stand_off_m: 0.002
   xyz_m:
   - 0.0
   - 0.0
@@ -103,7 +103,7 @@ pen:
   end_extrusion_dwell_s: 0.5
   max_press_s: 600.0
   press_angle_deg: 140
-  stand_off_m: 0.0015
+  stand_off_m: 0.002
   recycle_interval_s: 15.0
   recycle_pause_s: 2.0
   recycle_press_delay_s: 0.5
@@ -6114,12 +6114,12 @@ routes:
       - 0.05778433009982109
       - 0.7787162661552429
       - 0.231927290558815
-    minimum_bottle_tool_clearance_m: 0.014901413922008028
+    minimum_bottle_tool_clearance_m: 0.012402785860345183
     minimum_jig_tool_clearance_m: 0.041958157012609146
     source: Checked transition to the previously executed air-pass return route.
 notes: Uses operator-accepted CAD dimensions and position. Real 10 mm air pass completed
   with extrusion off; operator confirmed centered and visibly clear. Printing uses
-  1.5 mm nominal tip clearance.
+  2.0 mm nominal tip clearance.
 qualification:
   rt: true
   clearance: true
@@ -6195,14 +6195,14 @@ measurements:
     contact_datum: groove bottom
 T_jig_surface:
   xyz_m:
-  - 0.0
-  - -0.007
-  - 0.0725
+  - 7.592862010538095e-06
+  - -0.007034308775822895
+  - 0.07499975303907166
   quaternion_xyzw:
+  - 1.0842021724855044e-18
   - 0.0
-  - 0.0
-  - 0.7071067811865475
   - 0.7071067811865476
+  - 0.7071067811865477
 registration:
   tcp_source: Combined pen/holder CAD registered to URDF flange by four mounting holes;
     TCP orientation matches flange axes.
@@ -6227,6 +6227,10 @@ registration:
   calibration_basis: Operator-approved nominal CAD placement on four-groove-registered
     jig; no contact probing performed.
   air_pass_evidence: /home/ubuntu/robotics_ws/assets/outputs/tylenol-air-20261024T192943Z/execution-result.json
+  holder_seating_correction_m: 0.0025
+  holder_seating_correction_axis: robot base +Z
+  holder_seating_correction_source: User confirmed holder seating is the same 2.5
+    mm correction, not an additional height offset.
 acceptance_scope: Operator-authorized Tylenol drawing using accepted CAD placement
   after successful centered real air pass.
 drawing:
@@ -6312,9 +6316,9 @@ workpiece:
     - 0.5000000000000001
   T_jig_bottle:
     xyz_m:
-    - 1.79133717e-05
-    - 0.005
-    - 0.1044342701
+    - 2.5506233710538094e-05
+    - 0.004965691224177105
+    - 0.10693402313907167
     quaternion_xyzw:
     - -0.5
     - 0.4999999999999999
@@ -6322,17 +6326,17 @@ workpiece:
     - 0.5000000000000001
   T_jig_holder:
     xyz_m:
-    - 0.0
-    - 0.0149
-    - 0.0725
+    - 7.592862010538095e-06
+    - 0.014865691224177104
+    - 0.07499975303907166
     quaternion_xyzw:
     - 0.7071067811865475
     - 0.0
     - 0.0
     - 0.7071067811865477
   camera_evidence: /home/ubuntu/robotics_setup/validation/tylenol-assembly/camera.jpg
-  registration_status: CAD hole alignment; bottle pose and clocking inferred from
-    camera, unmeasured
+  registration_status: Operator-confirmed CAD placement; mounting plate bottom seated
+    on jig ledge using one total 2.5 mm robot-Z correction.
   source_body_axis_window_m:
   - -0.011
   - 0.035
@@ -6341,21 +6345,21 @@ workpiece:
   planning_radius_m: 0.0296
   holder_inner_radius_m: 0.028
   holder_hole_centers_jig_m:
-  - - -0.046
-    - -0.007
-    - 0.0725
-  - - -0.046
-    - 0.007
-    - 0.0725
-  - - 0.046
-    - -0.007
-    - 0.0725
-  - - 0.046
-    - 0.007
-    - 0.0725
+  - - -0.04599240713798946
+    - -0.007034308775822895
+    - 0.07499975303907166
+  - - -0.04599240713798946
+    - 0.006965691224177105
+    - 0.07499975303907166
+  - - 0.04600759286201054
+    - -0.007034308775822895
+    - 0.07499975303907166
+  - - 0.04600759286201054
+    - 0.006965691224177105
+    - 0.07499975303907166
   holder_unit_conversion: 0.001
   holder_hole_diameter_m: 0.0035
-  holder_mounting_hole_alignment_error_m: 3.0e-10
+  holder_mounting_hole_alignment_error_m: 3.513891933421872e-05
   body_circle_fit_source_window_m:
   - -0.01
   - 0.02

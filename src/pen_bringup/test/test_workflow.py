@@ -51,6 +51,20 @@ class WorkflowTest(unittest.TestCase):
         with self.assertRaisesRegex(WorkflowError,'true or false'):
             self.flow.prepare('owner',{'image':'apple.png','fill':'yes'})
 
+    def test_reload_reattaches_to_identical_pending_preparation(self):
+        with patch('pen_bringup.service.threading.Thread') as worker:
+            first = self.flow.prepare('owner', {'image': 'apple.png'})
+            self.flow.invalidate('owner')
+            second = self.flow.prepare('owner', {'image': 'apple.png'})
+        self.assertEqual(first['id'], second['id'])
+        self.assertEqual(worker.call_count, 1)
+        self.assertEqual(second['generation'], self.flow.session('owner')['generation'])
+        with self.assertRaisesRegex(WorkflowError, 'current job'):
+            self.flow.prepare('someone-else', {'image': 'apple.png'})
+        (self.flow.inputs/'apple.png').write_bytes(b'changed image')
+        with self.assertRaisesRegex(WorkflowError, 'current job'):
+            self.flow.prepare('owner', {'image': 'apple.png'})
+
     def test_tylenol_requires_its_profile_and_real_approval(self):
         with self.assertRaisesRegex(WorkflowError, 'tylenol.yaml'):
             self.flow.prepare('owner', {'image': 'apple.png', 'surface': 'cylinder'})

@@ -153,6 +153,17 @@ class Workflow:
                     live.get('status', {}).get('execution_backend') == 'joint_simulation',
             }
         with self.lock:
+            if self.preparing_job and not self.active_job:
+                pending = self.jobs[self.preparing_job]
+                # Reloads invalidate the browser review, not identical work
+                # already in progress. Reattach only the same owner and inputs.
+                if (pending['owner'] == key and pending['state'] == 'preparing' and
+                        pending['image'] == image.name and pending['surface'] == surface and
+                        pending['size_mm'] == size and pending['fill'] == fill and
+                        pending['input_sha256'] == input_digest(image) and
+                        pending['profile_sha256'] == (digest(selected_profile) if selected_profile else None)):
+                    pending['generation'] = self.session(key)['generation']
+                    return self.public_job(pending)
             if self.preparing or self.active_job:
                 raise WorkflowError('Wait for the current job or stop it first')
             self.invalidate(key)
