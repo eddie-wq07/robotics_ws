@@ -26,9 +26,20 @@ physical commissioning are verified, keep `commissioning_verified` false.
 
 The node attaches to an existing controller manager; it never starts a driver
 or opens an SDK connection. Target publication is best-effort depth one at
-100 Hz. Joint/Cartesian switching retains the existing 1 kHz hardware loop.
+1,000 Hz (one target every 1 ms). The active drawing profiles also compile at
+1,000 Hz. Joint/Cartesian switching retains the existing 1 kHz hardware loop;
+measured Cartesian feedback remains at its configured 100 Hz.
+On Cartesian activation, the hardware owner sets X/Y/Z stiffness from the active
+profile via `FLEXIV_CARTESIAN_LINEAR_STIFFNESS_N_M` (10,000 N/m in the restored profile),
+keeps the robot's nominal rotational stiffness, and uses the SDK's nominal damping.
+The setter runs before entering RT mode; it is not called in the streaming loop.
+The configured TCP position tracking-error limit is 5 mm (`tracking_limit_m: 0.005`).
 The pen output changes only pin 0 through the existing GPIO controller.
 No output is commanded on process startup or artifact preview.
+
+Dense filled jobs are bounded to 500,000 samples and 128 MiB, matching the
+planner's sample cap. These loading limits do not change motion, tracking,
+clearance, or extrusion-time limits.
 
 Interfaces:
 
@@ -72,3 +83,74 @@ completion, pin-0-only output changes, modified-job rejection, cancellation,
 and client-heartbeat loss. Set `PEN_TEST_JOB` to an existing fake job JSON to
 exercise a full compiled image path. It prints its temporary evidence directory
 and stops only the processes it started.
+
+## Joint-controller simulation
+
+The executor supports `execution_backend:=joint_simulation` only with
+`execution_mode:=fake`. It verifies mock hardware, then sends the generated
+`robot_preview.json` trajectory to `rizon_arm_controller` using
+`FollowJointTrajectory`. The Cartesian controller stays inactive. The preview
+file is bound to the job by SHA-256. Stop and browser-heartbeat cancellation
+remain active, and feedback drives the existing live UI.
+
+Use an isolated ROS domain for this test. The fake launch accepts `profile`
+and `execution_backend` arguments; a recorded Home in the profile initializes
+the fake joints. This does not qualify generated joint trajectories for the
+physical robot or model physical compliance/vibration.
+
+When preparing another joint simulation, the preview may include a smooth
+joint move from the current fake pose to the saved approach start. This
+simulation-only connector is not permitted for physical jobs.
+
+## Factory-model joint execution
+
+`execution_backend:=joint` accepts a separately generated, SHA-bound
+`joint_trajectory.json`. Physical jobs require the matching serial-specific
+factory kinematics, a measured start TCP within 0.5 mm of the model, and the
+existing commissioning and controller ownership checks. The generator uses
+continuous-velocity cubic interpolation and locally increases segment durations
+to limit joint velocity to 0.5 rad/s and acceleration to 1 rad/s². Interpolated
+path deviation is checked to 0.5 mm. Browser Stop, heartbeat, joint goal
+constraints and measured TCP tracking checks remain active.
+
+A profile's `joint_execution.air_offset_m` prepares an extrusion-off raised
+check. Extrusion requires `joint_execution.drawing_enabled` and a retimed pen
+schedule that still meets its press/recycle limits. These are explicit modes;
+simulation previews alone never authorize physical motion.
+
+The ROS update loop is 1,000 Hz with FIFO priority 50. The current hardware
+position interface uses Flexiv `SendJointPosition` in `NRT_JOINT_POSITION`, so
+this is not an end-to-end RT joint streaming implementation.
+
+Joint execution now requires the joint controller to claim both position and
+velocity interfaces so the hardware forwards the planned velocities to RDK.
+Exception guards issue release/cancel before large trajectory objects are
+destroyed. Physical trajectories must contain the new posture validation;
+older artifacts must be regenerated. These changes require a controller/driver
+restart and do not constitute physical qualification of the modified command path.
+
+## Cold-start pen warmup
+
+The UI's **Warm up pen · 30s** button calls `/pen/warmup` (`std_srvs/srv/Trigger`).
+Use it only with a cold pen: a hot pen can extrude on that first press.
+The executor checks hardware identity, an active GPIO controller, an inactive
+Cartesian controller, and stationary joint feedback. It issues one 0.2-second
+press and releases, then waits until 30 seconds from the press. No arm target,
+controller activation/switch, or second servo press is issued. The 30 seconds
+is operator-selected, not a temperature measurement or manufacturer guarantee.
+
+Warmup owns the executor until it completes or stops. `/pen/stop`, cancellation
+through the UI, expired browser heartbeat, or detected arm movement aborts it
+and requests servo release. Status phases are `WARMUP_STARTING`, `WARMUP_PRESS`,
+`WARMUP_HEATING`, and `WARMUP_COMPLETE` / `WARMUP_STOPPED` / `WARMUP_FAILED`;
+`warmup_id` identifies the specific request. The UI preserves the reviewed
+drawing and asks the operator to check temperature and click Execute afterward.
+Warmup never starts automatically, including on startup or before a drawing.
+
+The browser's **Go home · 3×** uses the current measured pose and saved
+calibration directly, without requiring a prepared drawing. It cancels pending
+preview preparation, checks a fresh joint route to the taught Home, and retains
+the same geometric clearance samples while retiming that route to one-third
+of the original duration (up to 0.45 rad/s). It checks robot joint velocity
+limits and refuses an unsafe return. Active robot operations must be stopped
+first. Completion regenerates the drawing preview from Home.

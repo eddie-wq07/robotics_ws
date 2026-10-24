@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const neutralColors = {pen_holder: 0x424b55, pen_body: 0xd3d6da,
@@ -26,7 +27,11 @@ export async function loadVisual(visual, linkName, materialGroups = null) {
     base.opacity = visual.rgba[3]; base.transparent = base.opacity < 1;
   }
   let shape;
-  if (visual.kind === 'mesh' && visual.url.endsWith('.obj')) {
+  if (visual.kind === 'mesh' && /\.(glb|gltf)$/i.test(visual.url)) {
+    // Keep the scan's node transforms and embedded PBR materials intact.
+    shape = new THREE.Group();
+    shape.add((await new GLTFLoader().loadAsync(visual.url)).scene);
+  } else if (visual.kind === 'mesh' && visual.url.endsWith('.obj')) {
     const response = await fetch(visual.url);
     if (!response.ok) throw new Error(`Cannot load ${visual.url}`);
     const text = await response.text();

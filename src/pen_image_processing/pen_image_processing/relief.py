@@ -80,7 +80,7 @@ def figure_mask(rgba):
     return ndimage.binary_fill_holes(ink), ink, "brightness threshold"
 
 
-def crop_and_scale(rgba, masks, size_mm, pad_mm=4.0, crop=True):
+def crop_and_scale(rgba, masks, size_mm, pad_mm=4.0, crop=True, return_frame=False):
     """Crop to the figure (``masks[0]``), scale its longest side to ``size_mm``, pad.
 
     Every mask in ``masks`` is cropped and scaled the same way. With ``crop``
@@ -105,6 +105,9 @@ def crop_and_scale(rgba, masks, size_mm, pad_mm=4.0, crop=True):
                           interpolation=cv2.INTER_AREA) > 0.5, pad)
         for mask in masks
     ]
+    if return_frame:
+        return rgb, scaled, {'crop_xyxy': [int(left), int(top), int(right), int(bottom)],
+                             'scaled_size_px': [width, height]}
     return rgb, scaled
 
 
@@ -470,7 +473,8 @@ def make_relief(picture, size_mm, process, mode="auto", fill=True, style="ridges
     detail_width, outline_width = detail_profile[0] * strand, outline_profile[0] * strand
     rgba = load_picture(picture)
     raw_mask, raw_ink, how = figure_mask(rgba)
-    rgb, (mask, ink) = crop_and_scale(rgba, [raw_mask, raw_ink], size_mm, crop=crop)
+    rgb, (mask, ink), source_frame = crop_and_scale(
+        rgba, [raw_mask, raw_ink], size_mm, crop=crop, return_frame=True)
     grid = Grid(mask.shape)
     width = line_art_width_mm(ink)
     inked = ink.sum() / max(1, mask.sum())
@@ -551,6 +555,7 @@ def make_relief(picture, size_mm, process, mode="auto", fill=True, style="ridges
         "notes": notes,
         "levels": result_levels,
         "_raster": {"rgb": rgb, "shape": mask.shape},
+        "_source_frame": source_frame,
     }
 
 

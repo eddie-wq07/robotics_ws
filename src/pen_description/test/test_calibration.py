@@ -1,5 +1,7 @@
 from pathlib import Path
 import xml.etree.ElementTree as ET
+import hashlib
+import runpy
 
 import pytest
 import yaml
@@ -7,6 +9,28 @@ import yaml
 from pen_description.calibration import load_profile, xacro_mappings, relative, compose, transform
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_factory_kinematics_are_pinned_to_robot_and_file(tmp_path):
+    render = runpy.run_path(str(ROOT / 'scripts/render_description.py'))['render']
+    from ament_index_python.packages import get_package_share_directory
+    template = Path(get_package_share_directory('flexiv_description')) / 'config/Rizon4s/default_kinematics.yaml'
+    kinematics = tmp_path / 'kinematics.yaml'
+    kinematics.write_bytes(template.read_bytes())
+    profile = yaml.safe_load((ROOT / 'config/fake.yaml').read_text())
+    profile['robot_kinematics'] = {'path': str(kinematics), 'robot_sn': profile['robot_sn'],
+                                  'sha256': hashlib.sha256(kinematics.read_bytes()).hexdigest()}
+    path = tmp_path / 'profile.yaml'
+    path.write_text(yaml.safe_dump(profile))
+    assert ET.fromstring(render(path, mode='fake')).tag == 'robot'
+    kinematics.write_text(kinematics.read_text() + '\n# changed\n')
+    with pytest.raises(ValueError, match='kinematics identity or file digest'):
+        render(path, mode='fake')
+    profile['robot_kinematics']['sha256'] = hashlib.sha256(kinematics.read_bytes()).hexdigest()
+    profile['robot_kinematics']['robot_sn'] = 'different-robot'
+    path.write_text(yaml.safe_dump(profile))
+    with pytest.raises(ValueError, match='kinematics identity or file digest'):
+        render(path, mode='fake')
 
 
 def test_missing_measurements_are_not_identity():
@@ -17,6 +41,21 @@ def test_missing_measurements_are_not_identity():
 def test_fake_cannot_be_used_as_real():
     with pytest.raises(ValueError, match='non-synthetic'):
         load_profile(ROOT / 'config/fake.yaml', mode='real')
+
+
+@pytest.mark.parametrize('delay', [0.0, 0.15, -0.1, float('nan'), float('inf'), True, None])
+def test_real_release_delay_allows_immediate_lift_but_rejects_invalid_values(tmp_path, delay):
+    profile = yaml.safe_load((ROOT / 'config/fake.yaml').read_text())
+    profile.update(calibrated=True, fake_only=False, synthetic=False)
+    profile['visual_servo']['enabled'] = False
+    profile['pen']['release_delay_s'] = delay
+    filename = tmp_path / 'real.yaml'
+    filename.write_text(yaml.safe_dump(profile))
+    if delay in (0.0, 0.15) and not isinstance(delay, bool):
+        assert load_profile(filename, mode='real')['pen']['release_delay_s'] == delay
+    else:
+        with pytest.raises(ValueError, match='pen.release_delay_s'):
+            load_profile(filename, mode='real')
 
 
 def test_jig_and_surface_share_transform():

@@ -85,6 +85,14 @@ class Model:
             sphere_mount = display.get('sphere_mount') if synthetic and profile_data.get('surface', {}).get('type') == 'sphere' else None
             flat_mount = display.get('flat_mount') if synthetic and profile_data.get('surface', {}).get('type') == 'plane' else None
             joint_snapshot = display.get('joint_snapshot') if synthetic else None
+            home = profile_data.get('home', {})
+            if not joint_snapshot and home.get('joint_positions_rad'):
+                joint_snapshot = {
+                    'robot_sn': profile_data['robot_sn'],
+                    'positions_rad': home['joint_positions_rad'],
+                    'recorded_utc': home.get('recorded_utc'),
+                    'source': 'Recorded Home pose (offline preview, not live feedback)',
+                }
             if joint_snapshot:
                 positions = joint_snapshot.get('positions_rad')
                 if (not isinstance(positions, list) or len(positions) != 7 or

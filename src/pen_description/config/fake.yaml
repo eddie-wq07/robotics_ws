@@ -1,5 +1,3 @@
-# Fake-only profile. Fixture follows supplied jig placement and CAD flat-tab fit.
-# Tool settings remain synthetic; this profile never authorizes physical motion.
 schema_version: 1
 profile_id: synthetic-lab-cell-v1
 calibrated: false
@@ -16,14 +14,14 @@ surface:
   frame_origin: plane_drawing_face
 T_world_surface:
   xyz_m:
-  - 0.508
-  - 0
-  - 0.05967
+  - 0.509345875131746
+  - -0.002341415861333601
+  - 0.06095252876730792
   quaternion_xyzw:
-  - 0.0
-  - 0.0
-  - 1.0
-  - 0.0
+  - -0.0068629663506955055
+  - -0.001513895153638917
+  - 0.999975067598278
+  - 0.0006870197613659503
 T_world_base:
   xyz_m:
   - 0
@@ -36,14 +34,14 @@ T_world_base:
   - 1
 T_base_jig:
   xyz_m:
-  - 0.508
-  - 0.0
-  - -0.01533
+  - 0.5103754504291983
+  - -0.0021150444990697707
+  - -0.01404006240484204
   quaternion_xyzw:
-  - 0.0
-  - 0.0
-  - 0.7071067811865476
-  - 0.7071067811865476
+  - -0.003782364516488401
+  - -0.005923335574775453
+  - 0.7066033549841475
+  - 0.7075749476482897
 T_flange_holder:
   xyz_m:
   - -0.011
@@ -99,9 +97,14 @@ payload:
   - 0
   - 0
 pen:
-  release_delay_s: 0.1
-  press_delay_s: 1.0  # Provisional observed extrusion-start delay
+  release_delay_s: 0.0
+  press_delay_s: 0.5
+  recycle_press_delay_s: 0.5
+  end_extrusion_dwell_s: 0.5
   max_press_s: 30.0
+  stand_off_m: 0.0013
+  recycle_interval_s: 15.0
+  recycle_pause_s: 2.0
 qualified:
   cartesian: false
   rt: false
@@ -138,7 +141,6 @@ camera:
   - 0.092
   - 0
   - -0.045
-
 visual_servo:
   enabled: true
   T_holder_servo:
@@ -153,3 +155,77 @@ visual_servo:
     - 1
   note: Generic micro-servo preview beside the pen button; dimensions and placement
     are approximate.
+T_jig_surface:
+  xyz_m:
+  - 0.0
+  - 0.0
+  - 0.075
+  quaternion_xyzw:
+  - 0.0
+  - 0.0
+  - 0.7071067811865475
+  - 0.7071067811865477
+registration:
+  jig_calibrated: true
+  jig_source: Four user-taught pen-tip contacts fitted rigidly to CAD dimple bottoms
+    at jig Z=73.75 mm
+  surface_source: Measured jig transform composed with the CAD flat drawing face at
+    jig Z=75 mm
+  jig_fit_report: /home/ubuntu/robotics_setup/validation/jig-registration/fit.json
+  jig_fit_rms_mm: 0.6837556910440138
+  jig_fit_max_error_mm: 0.9513841543507878
+measurements:
+  jig_four_point_registration:
+    recorded_utc: '2026-10-24T11:32:51.212442+00:00'
+    labels:
+    - left_bottom
+    - bottom_right
+    - top_right
+    - top_left
+    cad_points_m:
+    - - 0.05000000074505806
+      - 0.05000000074505806
+      - 0.07374999672174454
+    - - -0.05000000074505806
+      - 0.05000000074505806
+      - 0.07374999672174454
+    - - -0.05000000074505806
+      - -0.05000000074505806
+      - 0.07374999672174454
+    - - 0.05000000074505806
+      - -0.05000000074505806
+      - 0.07374999672174454
+    robot_base_points_m:
+    - - 0.4597175102023288
+      - 0.048395993448609356
+      - 0.059025619932756485
+    - - 0.4590754886613254
+      - -0.05318102367660666
+      - 0.0590073629248527
+    - - 0.5592645074829625
+      - -0.05269861072390788
+      - 0.060087140875390604
+    - - 0.5593946327135418
+      - 0.048133068970300535
+      - 0.06069047214636203
+    residual_mm:
+    - 0.7355599569556689
+    - 0.9513841543507878
+    - 0.32879219216588573
+    - 0.5619633574216998
+    mesh_sha256: c577f52b159687ea5f6f087bc48f9e7a2cb2ca4d1d186eb17d94fef2f0bb43c0
+    evidence:
+    - /home/ubuntu/robotics_setup/validation/taught-points/20261024T112755Z-left-bottom.json
+    - /home/ubuntu/robotics_setup/validation/taught-points/20261024T112845Z-bottom-right.json
+    - /home/ubuntu/robotics_setup/validation/taught-points/20261024T112951Z-top-right.json
+    - /home/ubuntu/robotics_setup/validation/taught-points/20261024T113211Z-top-left.json
+    contact_datum: groove bottom
+  jig_registration_note: Replaces prior approximate far-edge placement; no CAD scale
+    change.
+drawing:
+  sample_rate_hz: 1000
+  draw_speed_scale: 1.5
+  non_extruding_speed_scale: 3.0
+  speed_m_s: 0.012
+  travel_speed_m_s: 0.03
+  approach_speed_scale: 2.0

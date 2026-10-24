@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tylenol material preview</title>
+<style>
+body { margin: 0; background: #e6e8eb; color: #222; font: 15px system-ui; }
+canvas { display: block; } aside { position: fixed; top: 16px; left: 16px;
+padding: 14px 18px; background: #fffffff0; border-radius: 8px; max-width: 340px; }
+h1 { font-size: 18px; margin: 0 0 8px; } p { margin: 6px 0; }
+</style>
+<aside><h1>Tylenol scan</h1><p id="status">Loading…</p>
+<p>Drag to orbit · Scroll to zoom · Right-drag to pan</p>
+<p>Physical dimensions unverified.</p></aside>
+<script type="importmap">
+{"imports":{"three":"../../../pen_bringup/web/vendor/three/build/three.module.js","three/addons/":"../../../pen_bringup/web/vendor/three/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+const status = document.querySelector('#status');
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+document.body.append(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0xe6e8eb);
+const generator = new THREE.PMREMGenerator(renderer), room = new RoomEnvironment();
+scene.environment = generator.fromScene(room).texture; room.dispose(); generator.dispose();
+const camera = new THREE.PerspectiveCamera(35, 1, .0001, 10);
+const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 1));
+const light = new THREE.DirectionalLight(0xffffff, 2.5);
+light.position.set(.3, .5, .3); scene.add(light);
+new GLTFLoader().load('./tylenol.glb', gltf => {
+  scene.add(gltf.scene);
+  const box = new THREE.Box3().setFromObject(gltf.scene);
+  const size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
+  const radius = size.length() / 2;
+  controls.target.copy(center);
+  camera.position.copy(center).add(new THREE.Vector3(1, .6, 1.3).normalize().multiplyScalar(radius / Math.sin(THREE.MathUtils.degToRad(17.5)) * 1.2));
+  camera.near = radius / 100; camera.far = radius * 100; camera.updateProjectionMatrix();
+  controls.minDistance = radius * .25; controls.maxDistance = radius * 15;
+  status.textContent = `PBR textures · ${[size.x, size.y, size.z].map(v => (v * 1000).toFixed(1)).join(' × ')} mm (glTF axes)`;
+  window.assetLoaded = true;
+}, progress => {
+  if (progress.total) status.textContent = `Loading… ${Math.round(progress.loaded / progress.total * 100)}%`;
+}, error => { status.textContent = `Load failed: ${error.message}`; console.error(error); });
+function resize() { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+</script>
+</html>

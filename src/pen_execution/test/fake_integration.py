@@ -18,6 +18,8 @@ from controller_manager_msgs.srv import ListControllers, SwitchController
 from flexiv_msgs.msg import GPIOStates
 from pen_interfaces.action import ExecuteDrawing
 from std_msgs.msg import Empty
+from geometry_msgs.msg import PoseStamped
+from rclpy.qos import qos_profile_sensor_data
 
 
 def main():
@@ -30,6 +32,7 @@ def main():
     timer = node.create_timer(0.1, lambda: publisher.publish(Empty()))
     timer.cancel()  # Exercise action delivery before the first client heartbeat.
     outputs = []
+    target_stamps=[]
     subscription = node.create_subscription(
         GPIOStates, "/Rizon4s_000000/gpio_outputs",
         lambda message: outputs.extend((entry.pin, entry.state) for entry in message.states), 10)
@@ -80,18 +83,18 @@ def main():
         assert action.wait_for_server(timeout_sec=10), "Execution action unavailable"
         pump(0.5)
         samples = []
-        for i in range(201):
-            t = i / 100
-            if i < 30:
+        for i in range(2001):
+            t = i / 1000
+            if t < .3:
                 phase, on, x, z = "HOLD", False, 0, 0
-            elif i < 80:
-                phase, on, x, z = "DRAW", True, (i - 30) / 50 * .001, 0
-            elif i < 100:
+            elif t < .8:
+                phase, on, x, z = "DRAW", True, (t - .3) / .5 * .001, 0
+            elif t < 1.:
                 phase, on, x, z = "RELEASE", False, .001, 0
-            elif i < 150:
-                phase, on, x, z = "LIFT", False, .001, (i - 100) / 50 * .001
+            elif t < 1.5:
+                phase, on, x, z = "LIFT", False, .001, (t - 1.) / .5 * .001
             else:
-                phase, on, x, z = "TRAVEL", False, .001 * (200 - i) / 50, .001
+                phase, on, x, z = "TRAVEL", False, .001 * (2. - t) / .5, .001
             samples.append(dict(time_s=t, pose=[x, 0, z, 0, 0, 0, 1], phase=phase, extrude=on))
         job = dict(schema_version=1, kind="pen_job", frame="world", units="m",
                    pose_format="x,y,z,qx,qy,qz,qw", fake_only=True, calibrated=False,
@@ -132,8 +135,25 @@ def main():
         pump(.25)
         assert not outputs, "Initial heartbeat wait must not send hardware commands"
         timer.reset()
+        # Attach the read-only cadence probe after the exclusive-subscriber
+        # preflight, then remove it before subsequent goal preflights.
+        deadline=time.monotonic()+5
+        while not outputs and time.monotonic()<deadline:
+            pump(.01)
+        assert outputs,'Executor did not finish preflight'
+        target_subscription=node.create_subscription(PoseStamped,
+            '/flexiv_cartesian_controller/target_pose',
+            lambda msg:target_stamps.append(msg.header.stamp.sec+msg.header.stamp.nanosec*1e-9),
+            qos_profile_sensor_data)
         result = future_result(goal.get_result_async(), min(180, job["samples"][-1]["time_s"] + 30)).result
+        node.destroy_subscription(target_subscription)
         assert result.success, result.message
+        deltas=sorted(b-a for a,b in zip(target_stamps,target_stamps[1:]) if 0<b-a<.02)
+        assert len(deltas)>200,'Too few Cartesian targets to check cadence'
+        median_period=deltas[len(deltas)//2]
+        assert .0006<median_period<.0015,('Expected 1000 Hz Cartesian targets',median_period)
+        effective_rate=(len(target_stamps)-1)/(target_stamps[-1]-target_stamps[0])
+        assert effective_rate>900,('Sustained target rate below 900 Hz',effective_rate)
         assert any(pin == 0 and value for pin, value in outputs), outputs
         assert outputs[-1] == (0, False), outputs
         assert all(pin == 0 for pin, _ in outputs), outputs
@@ -178,6 +198,8 @@ def main():
         assert state["rizon_arm_controller"] == "inactive", state
         assert state["flexiv_cartesian_controller"] == "inactive", state
         report = dict(success=True, completed=result.message, canceled=cancel_result.message,
+                      target_median_rate_hz=1/median_period,
+                      target_effective_rate_hz=effective_rate,
                       digest_rejected=bad_result.message, final_controllers=state,
                       heartbeat_loss=heartbeat_result.message,
                       delayed_initial_heartbeat=True,

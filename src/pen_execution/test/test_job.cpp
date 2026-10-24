@@ -36,6 +36,16 @@ TEST(Job, ValidTimelineHasExplicitReleaseBeforeLift) {
   EXPECT_FALSE(job.samples[2].extrude);
   EXPECT_EQ(job.samples[3].phase,"LIFT");
 }
+TEST(Job, HomeJobsMustKeepPenOff) {
+  auto job=valid_job();job["purpose"]="joint_home";
+  EXPECT_THROW(pen_execution::parse_job(YAML::Dump(job)),std::runtime_error);
+  job["purpose"]="joint_retreat";
+  EXPECT_THROW(pen_execution::parse_job(YAML::Dump(job)),std::runtime_error);
+  for (auto row:job["samples"]) row["extrude"]=false;
+  YAML::Node events(YAML::NodeType::Sequence);
+  YAML::Node off;off["time_s"]=0.;off["extrude"]=false;events.push_back(off);job["pen_events"]=events;
+  EXPECT_NO_THROW(pen_execution::parse_job(YAML::Dump(job)));
+}
 TEST(Job, RejectsExtrusionDuringLift) {
   auto job=valid_job(); job["samples"][3]["extrude"]=true;
   EXPECT_THROW(pen_execution::parse_job(YAML::Dump(job)),std::runtime_error);
@@ -66,6 +76,33 @@ TEST(Job, EnforcesReleaseDwellBeforeLiftAndContinuousPressCap) {
   EXPECT_THROW(pen_execution::parse_job(YAML::Dump(job)),std::runtime_error);
   job=valid_job(); job["pen"]["max_press_s"]=0.005;
   EXPECT_THROW(pen_execution::parse_job(YAML::Dump(job)),std::runtime_error);
+  job=valid_job(); job["pen"]["recycle_interval_s"]=0.005;
+  EXPECT_THROW(pen_execution::parse_job(YAML::Dump(job)),std::runtime_error);
+  job["pen"]["recycle_interval_s"]=0.02;
+  EXPECT_NO_THROW(pen_execution::parse_job(YAML::Dump(job)));
+}
+TEST(Job, UsesSeparateStrokeAndRecyclePressDelays) {
+  auto job=valid_job();
+  job["pen"]["press_delay_s"]=.04;
+  job["pen"]["recycle_press_delay_s"]=.02;
+  job["pen"]["release_delay_s"]=0.;
+  job["samples"]=YAML::Node(YAML::NodeType::Sequence);
+  for (int i=0;i<=12;++i) {
+    YAML::Node sample;
+    sample["time_s"]=i*.01;
+    sample["extrude"]=(i>=1 && i<=5) || (i>=8 && i<=10);
+    sample["phase"]=i==0 ? "HOLD" : i==12 ? "LIFT" :
+      sample["extrude"].as<bool>() ? "DRAW" : "RELEASE";
+    sample["pose"]=std::vector<double>{i>=10 ? .002 : i>=5 ? .001 : 0.,0.,i==12 ? .001 : 0.,0.,0.,0.,1.};
+    job["samples"].push_back(sample);
+  }
+  job["pen_events"]=YAML::Load("[{time_s: 0, extrude: false}, {time_s: 0.01, extrude: true}, {time_s: 0.06, extrude: false}, {time_s: 0.08, extrude: true}, {time_s: 0.11, extrude: false}]");
+  EXPECT_NO_THROW(pen_execution::parse_job(YAML::Dump(job)));
+  job["pen"].remove("recycle_press_delay_s");
+  EXPECT_THROW(pen_execution::parse_job(YAML::Dump(job)),std::runtime_error);
+  job["pen"]["recycle_press_delay_s"]=.02;
+  job["samples"][2]["pose"][0]=.001;
+  EXPECT_THROW(pen_execution::parse_job(YAML::Dump(job)),std::runtime_error);
 }
 TEST(Job, HashAndRootProtectReviewedArtifact) {
   const auto base=std::filesystem::temp_directory_path()/ ("pen-execution-test-"+std::to_string(getpid()));
@@ -86,4 +123,29 @@ TEST(Job, QuaternionInterpolationTakesShortArcAndStaysUnit) {
   EXPECT_TRUE(pen_execution::valid_pose(mid));
   EXPECT_NEAR(mid[0],0.5,1e-9);
   EXPECT_NEAR(pen_execution::angular_distance(a,mid),0,1e-9);
+}
+
+TEST(Job, HomeConnectorIsOnlyUsedFromItsCheckedStart) {
+  YAML::Node routes;
+  const std::vector<double> home(7,0.2), park(7,0.0);
+  routes["approach"]["start_positions"]=park;
+  routes["home_connector"]["checked_joint_home"]=true;
+  routes["home_connector"]["start_positions"]=home;
+  routes["home_connector"]["points"][0]["positions"]=park;
+  EXPECT_FALSE(pen_execution::home_connector_for_start(routes,park));
+  EXPECT_TRUE(pen_execution::home_connector_for_start(routes,home));
+  EXPECT_THROW(pen_execution::home_connector_for_start(routes,std::vector<double>(7,0.5)),std::runtime_error);
+  routes["home_connector"]["points"][0]["positions"]=home;
+  EXPECT_THROW(pen_execution::home_connector_for_start(routes,home),std::runtime_error);
+  routes["home_connector"]["points"][0]["positions"]=park;
+  routes["home_connector"]["checked_joint_home"]=false;
+  EXPECT_THROW(pen_execution::home_connector_for_start(routes,home),std::runtime_error);
+}
+
+TEST(Job, ApproachEndpointCanBeRecognizedWithoutRelaxingJointTolerance) {
+  YAML::Node route;
+  route["points"][0]["positions"]=std::vector<double>(7,0.2);
+  EXPECT_TRUE(pen_execution::at_joint_route_end(route,std::vector<double>(7,0.2)));
+  EXPECT_FALSE(pen_execution::at_joint_route_end(route,std::vector<double>(7,0.24)));
+  EXPECT_FALSE(pen_execution::at_joint_route_end(route,std::vector<double>(6,0.2)));
 }

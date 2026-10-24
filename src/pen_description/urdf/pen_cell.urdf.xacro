@@ -5,6 +5,7 @@
   <xacro:arg name="robot_sn" default="Rizon4s-000000"/>
   <xacro:arg name="ros2_control" default="false"/>
   <xacro:arg name="use_fake_hardware" default="true"/>
+  <xacro:arg name="kinematics_parameters_file" default="$(find flexiv_description)/config/$(arg rizon_type)/default_kinematics.yaml"/>
   <xacro:arg name="profile_calibrated" default="false"/>
   <xacro:arg name="profile_fake_only" default="true"/>
   <xacro:arg name="profile_id" default="TBD"/>
@@ -31,7 +32,7 @@
   <xacro:include filename="pen_accessories.xacro"/>
   <xacro:rizon_robot rizon_type="$(arg rizon_type)" robot_sn="$(arg robot_sn)"
     joint_limits_parameters_file="$(find flexiv_description)/config/$(arg rizon_type)/joint_limits.yaml"
-    kinematics_parameters_file="$(find flexiv_description)/config/$(arg rizon_type)/default_kinematics.yaml"
+    kinematics_parameters_file="$(arg kinematics_parameters_file)"
     inertia_parameters_file="$(find flexiv_description)/config/$(arg rizon_type)/inertia_parameters.yaml"
     visual_parameters_file="$(find flexiv_description)/config/$(arg rizon_type)/visual_parameters.yaml"
     base_xyz="$(arg T_world_base_xyz)" base_rpy="$(arg T_world_base_rpy)"

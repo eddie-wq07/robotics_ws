@@ -12,4 +12,5 @@ setup(name='pen_bringup', version='0.1.0', packages=['pen_bringup'],
       maintainer='Mocha robotics', maintainer_email='robotics@example.com',
       description='Browser and launch integration for the pen pipeline', license='Proprietary',
       tests_require=['pytest'],
-      entry_points={'console_scripts': ['web_bridge = pen_bringup.web_bridge:main']})
+      entry_points={'console_scripts': ['web_bridge = pen_bringup.web_bridge:main',
+                                       'camera_feed = pen_bringup.camera_feed:main']})

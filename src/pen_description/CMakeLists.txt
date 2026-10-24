@@ -11,6 +11,8 @@ if(NOT mesh_result EQUAL 0)
   message(FATAL_ERROR "Canonical pen assets invalid: ${mesh_error}${mesh_output}")
 endif()
 install(DIRECTORY urdf config DESTINATION share/${PROJECT_NAME})
+install(FILES assets/tylenol/tylenol.glb assets/tylenol/manifest.json
+        DESTINATION share/${PROJECT_NAME}/assets/tylenol)
 install(DIRECTORY "${PEN_ASSET_ROOT}/" DESTINATION share/${PROJECT_NAME}/meshes FILES_MATCHING PATTERN "*.stl" PATTERN "manifest.json")
 install(PROGRAMS scripts/render_description.py DESTINATION lib/${PROJECT_NAME} RENAME render_description)
 install(FILES README.md DESTINATION share/${PROJECT_NAME})

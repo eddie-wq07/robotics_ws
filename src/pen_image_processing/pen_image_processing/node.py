@@ -22,7 +22,7 @@ def main(stage='image'):
         def __init__(self):
             super().__init__('image_processing_node' if stage=='image' else 'path_generation_node')
             self.declare_parameter('worker_python', str(Path.home()/'robotics_ws/.venv-pen/bin/python'))
-            self.declare_parameter('worker_timeout_s',180.0)
+            self.declare_parameter('worker_timeout_s',600.0)
             self.declare_parameter('jobs_root',str(Path.home()/'robotics_ws/assets/outputs'))
             self.lock=threading.Lock()
             self.server=ActionServer(self,kind,'/pen/prepare_drawing' if stage=='image' else '/pen/generate_path',

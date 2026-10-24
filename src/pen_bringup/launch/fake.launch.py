@@ -3,6 +3,8 @@ from pathlib import Path
 import os
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
+import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, RegisterEventHandler
@@ -16,13 +18,23 @@ def start(context):
     if os.environ.get('ROS_DOMAIN_ID', '0') == '0':
         raise RuntimeError('Use an isolated ROS domain for fake hardware: export ROS_DOMAIN_ID=73')
     root = Path(LaunchConfiguration('workspace').perform(context))
-    profile = root / 'src/pen_description/config/fake.yaml'
+    selected = LaunchConfiguration('profile').perform(context)
+    profile = Path(selected) if selected else root / 'src/pen_description/config/fake.yaml'
     tmp = tempfile.TemporaryDirectory(prefix='pen-fake-')
     urdf = Path(tmp.name) / 'cell.urdf'
     result = subprocess.run(['ros2','run','pen_description','render_description','--profile',str(profile),
                              '--mode','fake','--robot-sn','Rizon4s-000000','--ros2-control'],
                             capture_output=True, text=True, check=True, timeout=20)
-    urdf.write_text(result.stdout)
+    tree=ET.fromstring(result.stdout)
+    if any(item.text!='mock_components/GenericSystem' for item in tree.findall('./ros2_control/hardware/plugin')):
+        raise RuntimeError('Joint simulation requires explicit mock hardware')
+    home=yaml.safe_load(profile.read_text()).get('home',{})
+    positions=dict(zip(home.get('joint_names',[]),home.get('joint_positions_rad',[])))
+    for joint in tree.findall('./ros2_control/joint'):
+        if joint.get('name') in positions:
+            initial=joint.find('./state_interface[@name="position"]/param[@name="initial_value"]')
+            if initial is not None:initial.text=str(positions[joint.get('name')])
+    urdf.write_text(ET.tostring(tree,encoding='unicode'))
     gpio = Path(tmp.name) / 'gpio.yaml'
     gpio.write_text('/**/gpio_controller:\n  ros__parameters:\n    robot_sn: Rizon4s-000000\n')
     vendor = Path(get_package_share_directory('flexiv_cartesian_controller'))
@@ -36,6 +48,7 @@ def start(context):
              arguments=['gpio_controller','--controller-manager','/controller_manager','-p',str(gpio)]),
         IncludeLaunchDescription(PythonLaunchDescriptionSource(str(app / 'launch/app.launch.py')),
             launch_arguments={'workspace':str(root),'execution_mode':'fake','robot_sn':'Rizon4s-000000',
+                              'execution_backend':LaunchConfiguration('execution_backend').perform(context),
                               'profile':str(profile),'port':LaunchConfiguration('port').perform(context)}.items()),
     ]
 
@@ -44,5 +57,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('workspace', default_value=str(Path.home() / 'robotics_ws')),
         DeclareLaunchArgument('port', default_value='8080'),
+        DeclareLaunchArgument('profile', default_value=''),
+        DeclareLaunchArgument('execution_backend', default_value='cartesian', choices=['cartesian','joint_simulation','joint']),
         OpaqueFunction(function=start),
     ])

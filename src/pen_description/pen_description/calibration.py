@@ -114,12 +114,16 @@ def load_profile(path, *, mode='preview', robot_sn=None):
         payload = profile.get('payload', {})
         _numbers(payload.get('com_m'), 3, 'payload.com_m')
         _numbers(payload.get('inertia_kg_m2'), 6, 'payload.inertia_kg_m2')
-        for section, fields in [('payload', ['mass_kg']), ('pen', ['release_delay_s', 'press_delay_s', 'max_press_s']),
+        for section, fields in [('payload', ['mass_kg']), ('pen', ['press_delay_s', 'max_press_s']),
                                 ('tool_envelope', ['radius_m', 'length_m'])]:
             for field in fields:
                 value = profile.get(section, {}).get(field)
                 if isinstance(value, bool) or not isinstance(value, (float, int)) or not math.isfinite(value) or value <= 0:
                     raise ValueError(f'{section}.{field}: TBD or non-positive measured value')
+        release_delay = profile.get('pen', {}).get('release_delay_s')
+        if (isinstance(release_delay, bool) or not isinstance(release_delay, (float, int)) or
+                not math.isfinite(release_delay) or release_delay < 0):
+            raise ValueError('pen.release_delay_s: supply a finite nonnegative delay')
     servo = profile.get('visual_servo', {})
     if not isinstance(servo, dict) or type(servo.get('enabled', False)) is not bool:
         raise ValueError('visual_servo.enabled must be explicitly true or false')

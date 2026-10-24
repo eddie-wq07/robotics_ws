@@ -27,6 +27,7 @@ rizon_arm_controller:
       - $(var robot_sn)_joint7
     command_interfaces:
       - position
+      - velocity
     state_interfaces:
       - position
       - velocity

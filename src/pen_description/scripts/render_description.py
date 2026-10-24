@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Render one validated pen cell without opening a robot connection."""
 import argparse
+import hashlib
 from pathlib import Path
 import sys
 
@@ -19,6 +20,13 @@ def render(profile_path, mode='preview', robot_sn=None, rizon_type='Rizon4s', ro
     if not (root / 'urdf').is_dir():
         root = Path(get_package_share_directory('pen_description'))
     mappings = xacro_mappings(profile)
+    kinematics = profile.get('robot_kinematics')
+    if kinematics:
+        path = Path(kinematics['path']).resolve()
+        if (kinematics.get('robot_sn') != profile['robot_sn'] or
+                hashlib.sha256(path.read_bytes()).hexdigest() != kinematics.get('sha256')):
+            raise ValueError('Factory kinematics identity or file digest does not match the profile')
+        mappings['kinematics_parameters_file'] = str(path)
     mappings.update(robot_sn=profile['robot_sn'], rizon_type=rizon_type,
                     use_fake_hardware=str(mode != 'real').lower(),
                     ros2_control=str(ros2_control).lower())

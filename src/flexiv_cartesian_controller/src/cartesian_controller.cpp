@@ -1,5 +1,6 @@
 // Copyright 2026 Industrial Next. All rights reserved.
 #include "flexiv_cartesian_controller/cartesian_controller.hpp"
+#include "flexiv_cartesian_controller/target_freshness.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -171,21 +172,34 @@ void FlexivCartesianController::receive_target(const geometry_msgs::msg::PoseSta
   target.receipt_ns = steady_ns();
   const int64_t now = get_node()->now().nanoseconds();
   target.stamp_ns = static_cast<int64_t>(msg.header.stamp.sec) * 1000000000LL + msg.header.stamp.nanosec;
+  if (msg.header.frame_id != frame_) { reject(Rejection::invalid_frame); return; }
+  if (msg.header.stamp.nanosec >= 1000000000U || target.stamp_ns <= 0 || target.stamp_ns > now) {
+    reject(Rejection::invalid_timestamp); return;
+  }
+  target.source_age_ns = now - target.stamp_ns;
+  if (target.source_age_ns > static_cast<int64_t>(timeout_s_ * 1e9)) {
+    reject(Rejection::stale_timestamp); return;
+  }
   double norm = 0.0;
-  bool valid = msg.header.frame_id == frame_ && msg.header.stamp.nanosec < 1000000000U
-      && target.stamp_ns > 0 && target.stamp_ns <= now
-      && now - target.stamp_ns <= static_cast<int64_t>(timeout_s_ * 1e9);
+  bool valid = true;
   for (size_t i = 0; i < target.pose.size(); ++i) {
     valid = valid && std::isfinite(target.pose[i]);
     if (i >= 3) norm += target.pose[i] * target.pose[i];
   }
   if (!valid || !std::isfinite(norm) || norm < 1e-12) {
-    rejected_.fetch_add(1); return;
+    reject(Rejection::invalid_pose); return;
   }
   norm = std::sqrt(norm);
   for (size_t i = 3; i < 7; ++i) target.pose[i] /= norm;
   target.sequence = sequence_.fetch_add(1) + 1;
   target_buffer_.writeFromNonRT(target);
+}
+
+void FlexivCartesianController::reject(Rejection reason) {
+  rejection_counts_[static_cast<size_t>(reason)].fetch_add(1, std::memory_order_relaxed);
+  last_rejection_.store(reason, std::memory_order_relaxed);
+  // Publish the reason before the supervisor observes an increased total.
+  rejected_.fetch_add(1, std::memory_order_release);
 }
 
 void FlexivCartesianController::latch_stop() {
@@ -199,7 +213,6 @@ controller_interface::return_type FlexivCartesianController::update(
   if (stop_requested_.load(std::memory_order_acquire)) {
     latch_stop(); return controller_interface::return_type::OK;
   }
-  const int64_t now = steady_ns();
   const auto measured = measured_pose();
   bool valid_state = state_interfaces_[streaming_state_].get_value() == 1.0;
   for (const double value : measured) valid_state = valid_state && std::isfinite(value);
@@ -212,19 +225,28 @@ controller_interface::return_type FlexivCartesianController::update(
   first_update_ = false;
   if (!valid_state) { latch_stop(); return controller_interface::return_type::OK; }
   const Target target = *target_buffer_.readFromRT();
+  // Read the clock after the buffer: a callback may have delivered a target
+  // after this control cycle began, or even while measured state was read.
+  const int64_t now = steady_ns();
   if (target.generation == generation_.load() && target.sequence > last_sequence_) {
     last_sequence_ = target.sequence;
     double delta_squared = 0.0, dot = 0.0;
     for (size_t i = 0; i < 3; ++i) delta_squared += std::pow(target.pose[i] - measured[i], 2);
     for (size_t i = 3; i < 7; ++i) dot += target.pose[i] * measured[i];
     const double angle = 2.0 * std::acos(std::clamp(std::abs(dot), 0.0, 1.0));
-    if (target.stamp_ns > activation_ros_ns_ && time.nanoseconds() >= target.stamp_ns
-        && time.nanoseconds() - target.stamp_ns <= static_cast<int64_t>(timeout_s_ * 1e9)
-        && now - target.receipt_ns <= static_cast<int64_t>(timeout_s_ * 1e9)
-        && delta_squared <= max_translation_ * max_translation_ && angle <= max_rotation_) {
+    if (target.stamp_ns <= activation_ros_ns_) {
+      reject(Rejection::before_activation);
+    } else if (!target_is_fresh(target.source_age_ns, target.receipt_ns, now,
+                                static_cast<int64_t>(timeout_s_ * 1e9))) {
+      reject(Rejection::expired_target);
+    } else if (delta_squared > max_translation_ * max_translation_) {
+      reject(Rejection::translation_jump);
+    } else if (angle > max_rotation_) {
+      reject(Rejection::rotation_jump);
+    } else {
       target_pose_ = target.pose;
       last_receipt_ns_ = target.receipt_ns;
-    } else rejected_.fetch_add(1);
+    }
   }
   if (now - last_receipt_ns_ > static_cast<int64_t>(timeout_s_ * 1e9)) {
     latch_stop(); return controller_interface::return_type::OK;
@@ -260,6 +282,17 @@ void FlexivCartesianController::supervise() {
     diagnostic_msgs::msg::KeyValue value; value.key = pair.first; value.value = std::to_string(pair.second);
     status.values.push_back(value);
   }
+  for (size_t i = 0; i < rejection_names_.size(); ++i) {
+    diagnostic_msgs::msg::KeyValue value;
+    value.key = std::string("rejected_") + rejection_names_[i];
+    value.value = std::to_string(rejection_counts_[i].load(std::memory_order_relaxed));
+    status.values.push_back(value);
+  }
+  diagnostic_msgs::msg::KeyValue reason;
+  reason.key = "last_rejection_reason";
+  const auto last = last_rejection_.load(std::memory_order_relaxed);
+  reason.value = last == Rejection::count ? "none" : rejection_names_[static_cast<size_t>(last)];
+  status.values.push_back(reason);
   msg.status.push_back(status); status_pub_->publish(msg);
   if (!active_.load() || !stop_requested_.load() || switch_pending_.load()
       || !switch_client_->service_is_ready()) return;

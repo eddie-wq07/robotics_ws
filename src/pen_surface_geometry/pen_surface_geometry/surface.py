@@ -4,7 +4,8 @@ A marker lives in its own flat coordinates (s, t): s to the reader's right and
 t up, in metres, origin at the marker centre. Each surface maps (s, t) and a
 height ``d`` above the surface to a point in the build frame (origin at the
 top centre of the build plate, z up), and gives the outward normal there. The
-pen is held along the inward normal, so it stands perpendicular to the surface.
+normal describes surface geometry; the toolpath planner chooses pen orientation
+independently and checks clearance along the actual tool axis.
 
 * plane: a tile lying on the plate; the map is a rigid placement.
 * cylinder: a can standing on the plate; s wraps around it, t runs up it. The
@@ -22,11 +23,6 @@ import trimesh
 import yaml
 
 
-# Largest angle (radians) a marker may span from its centre on a ball: at most
-# 4.5 percent length error with the balanced scaling.
-SPHERE_MAX_ANGLE = 0.60
-# A globe's picture is already a map: up to the equator, 90 degrees from the pole.
-GLOBE_MAX_ANGLE = np.pi / 2 + 0.01
 # Largest angle around a can from the marker centre: past this the pen would
 # approach the can nearly edge-on from the arm's side.
 CYLINDER_MAX_ANGLE = np.pi / 3
@@ -117,6 +113,12 @@ class Plane(Surface):
         return np.broadcast_to(self.e_s, n.shape).copy(), np.broadcast_to(self.e_t, n.shape).copy(), n
 
     def fit(self, radius, extent=None):
+        if extent is not None:
+            s, bottom, top = extent
+            corners = self.point(np.array([-s, -s, s, s]), np.array([bottom, top, bottom, top]))
+            if np.any(np.abs(corners[:, :2] - self.position[:2]) > self.size[:2]/2 + 1e-9):
+                raise ValueError('drawing exceeds the rectangular tile bounds')
+            return {"max_length_error": 0.0}
         half = min(self.size[:2]) / 2
         if radius > half:
             raise ValueError(f"the marker reaches {radius * 1000:.0f} mm from its centre; "
@@ -224,7 +226,8 @@ class Sphere(Surface):
     """A ball resting on the plate; the marker sits on it like a sticker.
 
     ``projection: stereographic`` (the default) bends an ordinary picture onto
-    the ball with little stretch, for markers up to about 34 degrees across.
+    the ball; mapping distortion is reported rather than imposing an angular
+    printing-region limit.
     ``projection: azimuthal_equidistant`` is for a picture that already is a
     map of the ball drawn that way (a polar globe map): a point's distance
     from the marker centre is its distance over the ball, so a picture whose
@@ -297,11 +300,9 @@ class Sphere(Surface):
         """Scale so the stretch at the centre equals the shrink at ``radius``."""
         if self.projection == "azimuthal_equidistant":
             alpha = radius / self.R
-            if alpha > GLOBE_MAX_ANGLE:
+            if alpha > np.pi:
                 raise ValueError(
-                    f"the map reaches {np.degrees(alpha):.0f} deg from the pole on a "
-                    f"{self.R * 2000:.0f} mm ball; a hemisphere map is at most "
-                    f"{np.pi * self.R * 1000:.0f} mm across (--size-mm)")
+                    "the equidistant map would wrap past the sphere's antipode")
             return {"max_length_error": float(1 - np.sinc(alpha / np.pi)),
                     "angle_deg": float(np.degrees(alpha)),
                     "picture_is_a_map": True}
@@ -310,13 +311,6 @@ class Sphere(Surface):
             alpha = 2 * np.arctan(radius / (2 * self.R * self.k))
             self.k = (1 + np.cos(alpha / 2) ** 2) / 2
         alpha = 2 * np.arctan(radius / (2 * self.R * self.k))
-        if alpha > SPHERE_MAX_ANGLE:
-            edge = np.cos(SPHERE_MAX_ANGLE / 2) ** 2
-            largest = 2 * self.R * np.tan(SPHERE_MAX_ANGLE / 2) * (1 + edge) / 2
-            raise ValueError(
-                f"the marker reaches {np.degrees(alpha):.0f} deg from its centre on a "
-                f"{self.R * 2000:.0f} mm ball; at most {np.degrees(SPHERE_MAX_ANGLE):.0f} deg "
-                f"(a marker reaching at most {largest * 1000:.0f} mm from its centre)")
         low, high = self.scale(radius, 0.0), self.scale(0.0, 0.0)
         return {"max_length_error": float(max(abs(low - 1), abs(high - 1))),
                 "angle_deg": float(np.degrees(alpha))}

@@ -76,6 +76,10 @@ if(BUILD_TESTING)
   ament_add_gtest(test_ft_sensor_zeroing test/test_ft_sensor_zeroing.cpp)
   target_include_directories(test_ft_sensor_zeroing PRIVATE src)
   target_link_libraries(test_ft_sensor_zeroing flexiv::flexiv_rdk)
+  ament_add_gtest(test_joint_commands test/test_joint_commands.cpp)
+  target_include_directories(test_joint_commands PRIVATE include)
+  ament_add_gtest(test_cartesian_stiffness test/test_cartesian_stiffness.cpp)
+  target_include_directories(test_cartesian_stiffness PRIVATE include)
 endif()
 
 # EXPORTS

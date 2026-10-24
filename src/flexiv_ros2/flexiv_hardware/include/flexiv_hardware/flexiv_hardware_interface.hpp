@@ -27,6 +27,7 @@
 #include <hardware_interface/types/hardware_interface_return_values.hpp>
 
 #include "flexiv_hardware/visibility_control.h"
+#include "flexiv_hardware/joint_commands.hpp"
 
 #include <array>
 #include <set>
@@ -119,7 +120,7 @@ private:
 
     static rclcpp::Logger getLogger();
 
-    enum class CommandMode { None, Position, Velocity, Torque, Cartesian };
+    using CommandMode = ArmCommandMode;
     CommandMode active_mode_ = CommandMode::None;
     CommandMode pending_mode_ = CommandMode::None;
     std::set<std::string> claimed_arm_interfaces_;

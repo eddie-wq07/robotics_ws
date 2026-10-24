@@ -85,6 +85,18 @@ def test_registration_rejects_changed_cad(model_root):
     assert 'does not match' in result['message']
 
 
+def test_real_model_uses_recorded_home_for_offline_preview(model_root):
+    path = model_root / 'src/pen_description/config/fake.yaml'
+    path.write_text(yaml.safe_dump({'robot_sn': 'Rizon4s-063112',
+        'home': {'joint_positions_rad': [.1]*7, 'recorded_utc': '2026-10-24'}}))
+    with patch('pen_bringup.model.subprocess.run', return_value=SimpleNamespace(returncode=0, stdout=URDF)):
+        model = Model(model_root, mode='real').get()
+    assert model['available']
+    snapshot = model['visualization']['joint_snapshot']
+    assert snapshot['joints']['Rizon4s-063112_joint1'] == .1
+    assert 'not live feedback' in snapshot['source']
+
+
 @pytest.mark.parametrize('positions', [[0]*6, [0]*6+[float('nan')]])
 def test_joint_snapshot_rejects_incomplete_or_nonfinite_angles(model_root, positions):
     path = model_root / 'src/pen_description/config/visualization.yaml'

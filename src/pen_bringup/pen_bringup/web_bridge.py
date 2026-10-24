@@ -10,6 +10,8 @@ import signal
 import threading
 import time
 from urllib.parse import unquote, urlparse
+from urllib.request import urlopen
+from urllib.error import URLError, HTTPError
 
 from .service import Workflow, WorkflowError
 
@@ -35,6 +37,8 @@ class RosBridge:
         self.prepare_client = ActionClient(self.node, PrepareDrawing, '/pen/prepare_drawing')
         self.generate_client = ActionClient(self.node, GeneratePath, '/pen/generate_path')
         self.stop_client = self.node.create_client(Trigger, '/pen/stop')
+        self.warmup_client = self.node.create_client(Trigger, '/pen/warmup')
+        self.warmup_request = None
         self.heartbeat = self.node.create_publisher(Empty, '/pen/heartbeat', 10)
         self.goal = None
         self.preparation_goal = None
@@ -60,17 +64,63 @@ class RosBridge:
     def joints(self, msg):
         with self.lock:
             self.state['joints'] = dict(zip(msg.name, msg.position))
+            self.state['joints_received_at'] = time.time()
 
     def pose(self, msg):
         p, q = msg.pose.position, msg.pose.orientation
         with self.lock:
             self.state['pose'] = [p.x, p.y, p.z, q.x, q.y, q.z, q.w]
+            self.state['pose_received_at'] = time.time()
 
     def status(self, msg):
         with self.lock:
             for status in msg.status:
                 self.state['status'] = {'phase': status.message, **{p.key: p.value for p in status.values}}
             self.state['received_at'] = time.time()
+        self.update_warmup()
+
+    def update_warmup(self):
+        request = self.warmup_request
+        if not request or request['id'] is None:
+            return
+        status = self.snapshot()['status']
+        if status.get('warmup_id') != request['id']:
+            return
+        phase = status.get('phase', '')
+        if phase in ('WARMUP_COMPLETE', 'WARMUP_STOPPED', 'WARMUP_FAILED'):
+            self.warmup_request = None
+            self.execution_requested = False
+            message = ('Warmup complete — check pen temperature. Click Execute when ready.'
+                       if phase == 'WARMUP_COMPLETE' else status.get('error') or 'Warmup stopped; servo released')
+            request['done'](phase == 'WARMUP_COMPLETE', message)
+        elif phase.startswith('WARMUP_'):
+            request['feedback'](phase, float(status.get('progress', 0)))
+
+    def warmup(self, done, feedback):
+        if not self.warmup_client.service_is_ready():
+            raise WorkflowError('Warmup service unavailable; restart the updated executor')
+        self.execution_cancel.clear()
+        self.execution_requested = True
+        request = {'id': None, 'done': done, 'feedback': feedback, 'started': time.monotonic()}
+        self.warmup_request = request
+        self.heartbeat.publish(self.empty_type())
+
+        def accepted(future):
+            try:
+                result = future.result()
+                if self.warmup_request is not request:
+                    return
+                if not result.success:
+                    raise WorkflowError(result.message)
+                request['id'] = result.message
+                if self.execution_cancel.is_set():
+                    self.stop_client.call_async(self.stop_type.Request())
+                self.update_warmup()
+            except Exception as exc:
+                self.warmup_request = None
+                self.execution_requested = False
+                done(False, str(exc))
+        self.warmup_client.call_async(self.stop_type.Request()).add_done_callback(accepted)
 
     def snapshot(self):
         with self.lock:
@@ -80,6 +130,17 @@ class RosBridge:
         flow = self.workflow
         if flow and flow.active_job and time.monotonic() - flow.last_browser < 1.5:
             self.heartbeat.publish(self.empty_type())
+        request = self.warmup_request
+        if request:
+            elapsed = time.monotonic() - request['started']
+            stale = (request['id'] is not None and elapsed>2 and
+                     time.time()-(self.snapshot().get('received_at') or 0)>2)
+            if elapsed>40 or (request['id'] is None and elapsed>5) or stale:
+                self.warmup_request = None
+                if self.stop_client.service_is_ready():
+                    self.stop_client.call_async(self.stop_type.Request())
+                self.execution_requested = False
+                request['done'](False, 'Warmup feedback timed out; stop requested, pen state unconfirmed')
 
     def ready(self):
         return self.client.server_is_ready()
@@ -126,7 +187,7 @@ class RosBridge:
                 raise WorkflowError('Preparation server is busy')
             self.preparation_goal = handle
             try:
-                result = wait(handle.get_result_async(), 180, handle).result
+                result = wait(handle.get_result_async(), 600, handle).result
                 if self.preparation_cancel.is_set():
                     raise WorkflowError('Preparation canceled')
                 if not result.success:
@@ -170,7 +231,7 @@ class RosBridge:
                 self.execution_requested = False
                 done(False, str(exc))
         future = self.client.send_goal_async(goal, feedback_callback=lambda msg:
-                                            feedback(msg.feedback.phase, msg.feedback.progress))
+                                            feedback(msg.feedback.phase, msg.feedback.progress, msg.feedback.sample_index))
         future.add_done_callback(accepted)
 
     def stop(self):
@@ -182,14 +243,14 @@ class RosBridge:
             self.stop_client.call_async(self.stop_type.Request())
 
 
-def make_handler(flow, web_root, model):
+def make_handler(flow, web_root, model, camera_url='http://127.0.0.1:8082'):
     web_root = Path(web_root).resolve()
 
     class Handler(BaseHTTPRequestHandler):
         server_version = 'PenBrowser/1.0'
 
         def log_message(self, fmt, *args):
-            if '/api/state' not in (args[0] if args else ''):
+            if not any(path in (args[0] if args else '') for path in ('/api/state', '/api/camera/frame.jpg')):
                 super().log_message(fmt, *args)
 
         def session_key(self):
@@ -226,6 +287,21 @@ def make_handler(flow, web_root, model):
             key = self.session_key()
             path = unquote(urlparse(self.path).path)
             try:
+                if path == '/api/camera/frame.jpg':
+                    try:
+                        with urlopen(camera_url.rstrip('/') + '/frame.jpg', timeout=1) as response:
+                            body = response.read(2_000_000)
+                            self.send_response(200)
+                            self.send_header('Content-Type', 'image/jpeg')
+                            self.send_header('Content-Length', str(len(body)))
+                            self.send_header('Cache-Control', 'no-store')
+                            for header in ('X-Frame-Id', 'X-Frame-Age-Ms'):
+                                self.send_header(header, response.headers.get(header, ''))
+                            self.end_headers()
+                            self.wfile.write(body)
+                        return
+                    except (URLError, HTTPError, TimeoutError):
+                        return self.send({'error': 'Robot camera unavailable; reconnecting'}, code=503)
                 if path == '/api/state':
                     return self.send(flow.state(key))
                 if path == '/api/model':
@@ -260,6 +336,14 @@ def make_handler(flow, web_root, model):
                     if not candidate.is_relative_to(root):
                         raise WorkflowError('Invalid mesh path')
                     return self.file(candidate)
+                if path.startswith('/api/asset/'):
+                    root = (flow.root / 'src/pen_description/assets').resolve()
+                    candidate = (root / path[len('/api/asset/'):]).resolve()
+                    if not candidate.is_relative_to(root):
+                        raise WorkflowError('Invalid asset path')
+                    if candidate.suffix.lower() not in ('.glb', '.gltf', '.stl', '.json'):
+                        raise WorkflowError('Unsupported asset type')
+                    return self.file(candidate)
                 candidate = (web_root / (path.lstrip('/') or 'index.html')).resolve()
                 if not candidate.is_relative_to(web_root):
                     raise WorkflowError('Invalid path')
@@ -291,6 +375,10 @@ def make_handler(flow, web_root, model):
                 if self.path == '/api/execute':
                     return self.send(flow.execute(key, data.get('job_id'), data.get('preview_token'),
                                                   data.get('air_run', False)), code=202)
+                if self.path == '/api/home':
+                    return self.send(flow.home(key, data.get('job_id')), code=202)
+                if self.path == '/api/warmup':
+                    return self.send(flow.warmup(key), code=202)
                 if self.path == '/api/stop':
                     return self.send(flow.stop(key))
                 raise WorkflowError('Unknown command')
@@ -308,6 +396,7 @@ def main():
     parser.add_argument('--mode', choices=('preview', 'fake', 'real'), default='preview')
     parser.add_argument('--profile')
     parser.add_argument('--no-ros', action='store_true')
+    parser.add_argument('--camera-url', default='http://127.0.0.1:8082')
     args, ros_args = parser.parse_known_args()
     bridge = None
     if not args.no_ros:
@@ -326,7 +415,7 @@ def main():
     from .model import Model
     model = Model(flow.root, flow.profile, flow.mode)
     flow.model_provider = model.get
-    server = ThreadingHTTPServer((args.host, args.port), make_handler(flow, web, model.get))
+    server = ThreadingHTTPServer((args.host, args.port), make_handler(flow, web, model.get, args.camera_url))
     # ROS launch/background shells may pass an ignored SIGINT disposition.
     # Own shutdown in the HTTP thread; ROS spinning uses the same cleanup path.
     signal.signal(signal.SIGINT, signal.default_int_handler)

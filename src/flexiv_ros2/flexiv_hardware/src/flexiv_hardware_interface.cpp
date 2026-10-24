@@ -9,6 +9,7 @@
 #include <array>
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <vector>
 #include <string>
 #include <stdexcept>
@@ -20,6 +21,7 @@
 
 #include "flexiv/rdk/robot.hpp"
 #include "flexiv_hardware/flexiv_hardware_interface.hpp"
+#include "flexiv_hardware/cartesian_stiffness.hpp"
 #include "ft_sensor_zeroing.hpp"
 
 namespace {
@@ -468,12 +470,15 @@ try
     const auto finite = [](const auto& values) {
         return std::all_of(values.begin(), values.end(), [](double v) { return std::isfinite(v); });
     };
-    if (active_mode_ == CommandMode::Position && robot_->mode() == rdk_control_mode_
-        && finite(hw_commands_joint_positions_)) {
-        for (size_t i = 0; i < rdk_to_ros_map_.size(); ++i) {
-            target_position_[i] = hw_commands_joint_positions_[rdk_to_ros_map_[i]];
+    if ((active_mode_ == CommandMode::Position || active_mode_ == CommandMode::PositionVelocity)
+        && robot_->mode() == rdk_control_mode_) {
+        if (!map_position_command(hw_commands_joint_positions_, hw_commands_joint_velocities_,
+                rdk_to_ros_map_, active_mode_ == CommandMode::PositionVelocity,
+                target_position_, target_velocity_)) {
+            active_mode_ = CommandMode::None;
+            stop_cartesian("invalid joint position/velocity command");
+            return hardware_interface::return_type::ERROR;
         }
-        std::fill(target_velocity_.begin(), target_velocity_.end(), 0.0);
         robot_->SendJointPosition(target_position_, target_velocity_, max_velocity_, max_acceleration_);
     } else if (active_mode_ == CommandMode::Velocity && robot_->mode() == rdk_control_mode_
         && finite(hw_commands_joint_velocities_)) {
@@ -568,16 +573,13 @@ hardware_interface::return_type FlexivHardwareInterface::prepare_command_mode_sw
     cartesian = position;  // Joint position resources also exclude the joint controller.
     for (const auto* name : kPoseNames) cartesian.insert(cartesian_resource_ + "/" + name);
     cartesian.insert(cartesian_resource_ + "/enabled");
-    CommandMode mode;
-    if (requested.empty()) mode = CommandMode::None;
-    else if (requested == position) mode = CommandMode::Position;
-    else if (requested == velocity) mode = CommandMode::Velocity;
-    else if (requested == torque) mode = CommandMode::Torque;
-    else if (has_cartesian_interfaces_ && requested == cartesian) mode = CommandMode::Cartesian;
-    else {
+    const auto selected = select_arm_mode(requested, position, velocity, torque,
+        cartesian, has_cartesian_interfaces_);
+    if (!selected) {
         RCLCPP_ERROR(getLogger(), "Rejecting partial or conflicting arm command interfaces");
         return hardware_interface::return_type::ERROR;
     }
+    const auto mode = *selected;
     if (mode == CommandMode::Cartesian && info_.joints.size() != 7) {
         RCLCPP_ERROR(getLogger(), "Cartesian controller supports one seven-joint arm only");
         return hardware_interface::return_type::ERROR;
@@ -602,6 +604,18 @@ hardware_interface::return_type FlexivHardwareInterface::perform_command_mode_sw
         if (pending_mode_ == CommandMode::Cartesian) {
             // Setters are legal in NRT Cartesian mode; configure before entering RT.
             robot_->SwitchMode(flexiv::rdk::Mode::NRT_CARTESIAN_MOTION_FORCE);
+            auto stiffness = robot_->info().K_x_nom;
+            if (const auto* configured = std::getenv("FLEXIV_CARTESIAN_LINEAR_STIFFNESS_N_M")) {
+                const std::string value(configured);
+                std::size_t parsed = 0;
+                const double linear = std::stod(value, &parsed);
+                if (parsed != value.size())
+                    throw std::invalid_argument("Invalid Cartesian linear stiffness setting");
+                stiffness = cartesian_stiffness(stiffness, linear);
+            }
+            robot_->SetCartesianImpedance(stiffness);
+            RCLCPP_INFO(getLogger(), "Cartesian stiffness set: XYZ %.0f N/m; rotation %.0f %.0f %.0f Nm/rad",
+                stiffness[0], stiffness[3], stiffness[4], stiffness[5]);
             robot_->SetForceControlAxis({false, false, false, false, false, false});
             robot_->SetNullSpacePosture(robot_->states().q);
             robot_->SwitchMode(flexiv::rdk::Mode::RT_CARTESIAN_MOTION_FORCE);
@@ -613,6 +627,7 @@ hardware_interface::return_type FlexivHardwareInterface::perform_command_mode_sw
             cartesian_enabled_ = cartesian_streaming_ = 1.0;
             cartesian_stop_latched_ = false;
         } else if (pending_mode_ == CommandMode::Position
+            || pending_mode_ == CommandMode::PositionVelocity
             || pending_mode_ == CommandMode::Velocity) {
             robot_->SwitchMode(rdk_control_mode_);
             const auto state = robot_->states();

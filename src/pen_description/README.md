@@ -1,5 +1,9 @@
 # Pen cell description
 
+The imported [Tylenol scan](assets/tylenol/README.md) includes a validated PBR
+visual, full-quality source, inspection manifest and standalone material preview.
+The runtime GLB is installed under `share/pen_description/assets/tylenol`.
+
 This package composes the vendor Flexiv arm, combined holder/pen, and fixed
 jig/workpiece into one URDF. It opens no robot connection. `pen_tip` is the
 physical tip and `pen_rdk_tcp` records the separately calibrated active SDK TCP.
@@ -12,6 +16,14 @@ references are portable `package://pen_description/meshes/...` URLs. Rebuild
 after changing the canonical assets.
 
 ## Calibration
+
+`config/real_robot_1000hz_5mm.yaml` is the complete saved real-robot configuration
+restored at the 1000 Hz / 5 mm tracking-limit checkpoint. It includes all measured
+transforms, tool and payload data, fixture registration, Home and approach routes,
+pen timing, drawing motion, selected artwork/fill, executor parameters, Cartesian
+stiffness, and browser/camera settings. The local Mocha startup scripts read this
+file; the older local `drawing-profile.yaml` path links to it. Driver stiffness
+is applied on Cartesian activation and requires a driver restart after editing.
 
 `config/calibration.template.yaml` is the real-machine template: unknown
 measurements remain null/TBD. Sam can fill the measured values in a local copy
@@ -96,18 +108,21 @@ The TCP offset `[224.709, 2.292, -1.993]` mm is stored in
 browser annotation. The active RDK TCP still requires verification.
 
 The viewport contains geometry only; measurement labels and legends are omitted.
-The jig uses a local-Z quarter-turn and the rotated far-edge
-datum: base-frame origin `[0.508, 0, -0.01533]` m, far edge
-`[0.568, 0, -0.01533]` m after lowering 15.33 mm. The sphere's built-in tabs
-rotate 90 degrees in the jig frame; four Ø4.5 mm clearance holes match the
-jig's M4 mounting pattern. Tab undersides seat at jig Z=72.5 mm, placing the
-sphere center at jig Z=73.75 mm, or base `[0.508, 0, 0.05842]` m.
-The current default is `flat.stl`: the same quarter-turn aligns its four tab
-holes with the jig. Its underside seats at jig Z=72.5 mm and drawing face at
-Z=75 mm, giving base-frame drawing origin `[0.508, 0, 0.05967]` m.
-`visualization.yaml` records the CAD fit and mesh hashes; `fake.yaml` uses the
-same fixture pose so preview paths and the displayed sphere agree. Physical
-fit and real surface registration still need verification.
+The jig pose is fitted to four user-taught pen-tip contacts at the CAD groove
+bottoms, local `(X,Y,Z) = (+/-50,+/-50,73.75)` mm. The fit is a rigid transform;
+CAD dimensions are preserved. The fitted jig origin in robot base coordinates
+is `[510.375, -2.115, -14.040]` mm, with roll/pitch/yaw
+`[-0.786, -0.174, 89.922]` degrees. RMS contact residual is 0.684 mm and the largest
+residual is 0.951 mm. The recorded contacts and fit evidence are referenced by
+`config/calibration.mocha.yaml`.
+
+The flat's CAD drawing face remains at jig Z=75 mm, with a 90-degree local turn.
+Its fitted center is base `[509.346, -2.341, 60.953]` mm; the measured plane tilt
+is retained. Drawing clearance is 1.3 mm along that plane's outward normal.
+`fake.yaml` uses the same fitted jig/surface geometry, and `visualization.yaml`
+retains the CAD-only flat/sphere mounting transforms. Previous approach and park
+routes are marked unqualified because they predate this fixture registration.
+
 The CAD registration does not fill other missing calibration values. Use **Tool mount**
 below the viewport to inspect the holder. Robot materials retain the vendor's
 stored diffuse colors under neutral, white-balanced lighting. STL tooling

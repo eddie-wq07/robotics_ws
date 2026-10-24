@@ -25,12 +25,13 @@ job.json, report.json and request.json. Set `drawing_path` instead of `image_pat
 to compile a previously extracted drawing. Missing real calibration is rejected.
 The scientific libraries do not connect to ROS or the robot.
 
-The pen tip defaults to **2 mm above the physical surface**, measured along the
-outward surface normal. `stand_off_m` values below `0.002` are rejected. Lift and
+The pen tip defaults to **1.3 mm above the physical surface**, measured along the
+outward surface normal. The active sphere profile uses **1.25 mm** clearance;
+values below `0.00125` on the sphere or `0.0013` on the plane are rejected. Lift and
 air-run offsets add to that clearance. Surface geometry itself remains at the
 physical surface; the compiler applies the tip clearance once, then converts
 the tip pose to the RDK TCP pose using the calibrated transforms. The legacy
-preview slicer also starts its first layer at 2 mm clearance.
+preview slicer also starts its first layer at 1.3 mm clearance.
 
 Browser requests also provide `robot_preview`: the current URDF joint chain,
 starting joint positions and CAD tip transform. The worker uses seeded,
@@ -62,3 +63,88 @@ coordinates directly to the RDK base frame. Real profiles must therefore have
 identity `T_world_base`; translated or rotated world/base relationships are
 rejected until command and feedback frame conversion is implemented together.
 Preview/fake profiles can still represent other frame relationships.
+
+Drawing speed is `speed_m_s`; non-extruding speed is `travel_speed_m_s`.
+Active profiles set `drawing.sample_rate_hz: 1000` to match the 1,000 Hz Cartesian target publisher.
+The rounded stroke path uses a smooth cubic curve between its samples, so
+1,000 Hz sampling does not introduce velocity corners at the old polyline joins.
+`drawing.draw_speed_scale: 1.5` and `drawing.non_extruding_speed_scale: 3.0`
+multiply moving portions of those schedules. Non-extruding scaling also applies
+to the saved joint approach, connecting motion, lowering, lifting, transfers,
+and return. Pen lead/release dwells and the 15-second recycle interval with its
+2-second pause remain unchanged. The independently retimed Go home command
+remains at its already configured 3x setting.
+Both accept metres/second and are checked separately against their configured
+limits. If no travel speed is supplied, travel uses the drawing speed.
+Motion settings are independent in each surface's calibration profile:
+`drawing.speed_m_s`, `drawing.travel_speed_m_s`, `drawing.approach_speed_scale`,
+and `pen.stand_off_m`. The flat venue profile's base speeds are 0.012 m/s drawing,
+0.030 m/s travel, 2x initial setup, and 0.0013 m tip stand-off. The sphere
+profile's base speeds are 0.006 m/s drawing, 0.015 m/s travel, 1x initial setup, and
+0.00125 m tip stand-off. A sphere entry-only transition may start below the
+raised travel height, but must already meet the drawing stand-off and pass
+the same sampled surface/tool clearance checks.
+
+With a saved joint approach, generation computes its endpoint TCP using the
+calibrated robot model and includes a checked Cartesian segment from that
+endpoint to the saved Cartesian entry. Thus the first executable Cartesian
+sample matches where the joint approach actually ends; preview-only connecting
+motion cannot hide a start-pose mismatch from the executor.
+
+Continuous extrusion is split at 15 seconds (`pen.recycle_interval_s`), including
+the press lead time. The compiler stops at a point on the same stroke, releases
+the pen, and holds the exact pose for 2 seconds (`pen.recycle_pause_s`) before
+pressing again. The recycle press lead then elapses before motion continues.
+The current press lead is **0.5 seconds** after lowering at a stroke start;
+`pen.recycle_press_delay_s: 0.5` preserves the **0.5-second** lead after a recycle.
+Continuous strokes use a short acceleration phase, constant
+cruise speed, and braking at the next deliberate stop instead of a quintic
+speed ramp spread over the entire stroke. Acceleration and curvature limits
+still apply; there is no instantaneous jump to full speed.
+At the end of each stroke, `pen.end_extrusion_dwell_s: 0.5` keeps extrusion
+on at the final point for 0.5 seconds total before release. Extrusion then turns
+off and lifting begins at the next motion sample, without an extra off dwell.
+This extra endpoint dwell does
+not run at mid-stroke recycle pauses; it is included in the 15-second press
+budget, with an earlier recycle if necessary to leave room.
+There is no lift during a recycle pause. Each split uses a rest-to-rest segment;
+short strokes and normal lifts between strokes are unchanged.
+The current profiles use `pen.release_delay_s: 0.0`; the explicit off sample
+still precedes lifting at the end of each stroke.
+
+### Joint-controller trajectory output
+
+For `execution_backend: joint`, the worker requires a serial-specific
+`robot_kinematics` file pinned by SHA-256. It writes `joint_trajectory.json`
+and binds its digest into `job.json`. Display-only kinematic corrections are
+rejected. The generated preview uses the same retimed waypoints.
+
+The scientific worker needs `toppra==0.6.10` (install in `.venv-pen`, not ROS
+system Python). TOPPRA retimes a continuous-velocity cubic joint path under
+velocity and acceleration limits. A virtual clock coordinate prevents shorter
+source dwells or higher requested path speed. The final ROS cubic is checked
+at its exact velocity/acceleration extrema; interpolated tip deviation is also
+checked. This establishes numerical path checks, not collision qualification.
+
+Joint jobs use continuous stroke timing with small tangent corner blends
+(up to 0.25 mm trim) instead of restarting a quintic at every outline vertex.
+Factory-model IK uses tighter numerical tolerances so sampling does not create
+false stationary runs. The final schedule preserves two-second stationary
+recycle pauses; periodic continuous sections are aligned to the requested
+15-second interval by slowing motion, never by inserting an early hold.
+
+Joint plans now bias redundant IK motion toward the checked approach posture
+and reject poor conditioning at both sampled and interpolated positions. The
+scaled Jacobian uses a 0.15 m rotation weight, a maximum condition number of 60,
+and a minimum singular value of 0.015. A rejected path needs a different approach,
+placement, or posture; reducing speed alone does not satisfy this geometric check.
+# Downward pen orientation
+
+Drawing paths keep a steady heading and point the pen vertically downward
+wherever the calibrated tool envelope permits. A smooth, minimal tilt toward
+the surface normal is added where needed for capsule clearance and the
+**25-degree maximum deviation from the local surface normal**. There is no
+fixed sphere printing-region angle cap. Surface mapping, pen/holder clearance,
+joint reachability and motion limits still apply. The selected tip stand-off is preserved, and TCP positions and
+motion timing are recomputed from the pen-tip transform and actual orientation.
+Approach and return transitions still connect smoothly to the recorded poses.

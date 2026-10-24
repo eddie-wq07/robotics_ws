@@ -30,10 +30,19 @@ class FlexivCartesianController : public controller_interface::ControllerInterfa
     std::array<double, 7> pose{};
     int64_t receipt_ns = 0;
     int64_t stamp_ns = 0;
+    int64_t source_age_ns = 0;
     uint64_t generation = 0;
     uint64_t sequence = 0;
   };
   static int64_t steady_ns();
+  enum class Rejection : size_t {
+    invalid_frame, invalid_timestamp, stale_timestamp, invalid_pose,
+    before_activation, expired_target, translation_jump, rotation_jump, count
+  };
+  static constexpr std::array<const char*, static_cast<size_t>(Rejection::count)> rejection_names_ = {
+    "invalid_frame", "invalid_timestamp", "stale_timestamp", "invalid_pose",
+    "before_activation", "expired_target", "translation_jump", "rotation_jump"};
+  void reject(Rejection reason);
   void receive_target(const geometry_msgs::msg::PoseStamped&);
   void supervise();
   void latch_stop();
@@ -53,6 +62,8 @@ class FlexivCartesianController : public controller_interface::ControllerInterfa
   bool first_update_ = true;
   std::atomic<bool> active_{false}, stop_requested_{false}, switch_pending_{false};
   std::atomic<uint64_t> generation_{0}, sequence_{0}, rejected_{0}, late_cycles_{0};
+  std::array<std::atomic<uint64_t>, static_cast<size_t>(Rejection::count)> rejection_counts_{};
+  std::atomic<Rejection> last_rejection_{Rejection::count};
   std::atomic<int64_t> max_period_ns_{0};
   realtime_tools::RealtimeBuffer<Target> target_buffer_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr target_sub_;

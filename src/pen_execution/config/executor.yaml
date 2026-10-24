@@ -1,8 +1,9 @@
 pen_execution:
   ros__parameters:
     execution_mode: preview
+    execution_backend: cartesian
     commissioning_verified: false
     require_heartbeat: true
     heartbeat_timeout: 2.0
-    tracking_limit_m: 0.015
+    tracking_limit_m: 0.005
     start_tolerance_m: 0.002

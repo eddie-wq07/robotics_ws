@@ -1,0 +1,114 @@
+{
+  "asset": "tylenol",
+  "status": "validated_visual_asset",
+  "source": "source.glb",
+  "source_sha256": "7da0fb69cc2bf181b903714eed16e6162bc3c9542532dd5572ec881a3fb39c63",
+  "source_bytes": 272724304,
+  "file": "tylenol.glb",
+  "sha256": "f0752be85ab7b2e953e3875d2f54442bba1a98003b6e83e65a984afd56af4891",
+  "bytes": 77787088,
+  "generator": "reconstruction.deliver",
+  "import_date": "2026-10-24",
+  "units": "meters by glTF convention; physical dimensions unverified",
+  "up_axis": "Y for the glTF scene; preserve embedded node rotation",
+  "vertex_count": 904415,
+  "triangle_count": 1785900,
+  "geometry": [
+    {
+      "buffer_view": 0,
+      "bytes": 10852980,
+      "sha256": "08ffd98f15505f8e26a27c79d57d31340e040dc25f2cdffcc62a33364c536adc"
+    },
+    {
+      "buffer_view": 1,
+      "bytes": 10852980,
+      "sha256": "fa5ead99d6a9fe5fd6b4778a8a616f7915d30eaed66a2ba50006d2c41dc256a5"
+    },
+    {
+      "buffer_view": 2,
+      "bytes": 7235320,
+      "sha256": "1e55688a6299a8f9fc0cc425730202f1da7c2e775628397ecb7821da41ff6ae1"
+    },
+    {
+      "buffer_view": 3,
+      "bytes": 14470640,
+      "sha256": "d2be03b005e1a37161ff1fc68112e6fda662ec7f705b8fb1abde379b7b4f27c6"
+    },
+    {
+      "buffer_view": 4,
+      "bytes": 21430800,
+      "sha256": "befbc4c7f84fd55e90b10788d23b3a28d68df60396fca5123c32eb5e59a21b02"
+    }
+  ],
+  "textures": [
+    {
+      "name": "Normals_GLTF",
+      "source_size_px": [
+        8192,
+        8192
+      ],
+      "size_px": [
+        2048,
+        2048
+      ],
+      "bytes": 3753902
+    },
+    {
+      "name": "AO_GLTF-Roughness_GLTF-Metalness_GLTF",
+      "source_size_px": [
+        8192,
+        8192
+      ],
+      "size_px": [
+        2048,
+        2048
+      ],
+      "bytes": 4297517
+    },
+    {
+      "name": "Basecolor_GLTF",
+      "source_size_px": [
+        8192,
+        8192
+      ],
+      "size_px": [
+        2048,
+        2048
+      ],
+      "bytes": 4890571
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "rotation": [
+        0.7071067811865476,
+        0.0,
+        0.0,
+        0.7071067811865476
+      ]
+    }
+  ],
+  "mesh_local_bounds": [
+    {
+      "min": [
+        -0.045566972345113754,
+        -0.028186321258544922,
+        -0.06142379716038704
+      ],
+      "max": [
+        0.04206216335296631,
+        0.02821631357073784,
+        -0.003226231085136533
+      ]
+    }
+  ],
+  "collision": null,
+  "mass_kg": null,
+  "inertia": null,
+  "notes": [
+    "Geometry, UVs, normals, tangents, indices and material settings preserved.",
+    "All source textures verified and decoded; normal vectors renormalized after resizing.",
+    "Static visual asset only; no physical scale, collision or dynamics qualification."
+  ]
+}
