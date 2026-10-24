@@ -1,0 +1,33 @@
+menu "Pen servo measured configuration"
+    config PEN_CALIBRATED
+        bool "Angle-to-PWM calibration, timing and external inactive bias verified"
+        default n
+    config PEN_PWM_HZ
+        int "Measured servo PWM frequency in Hz (0 = TBD)"
+        range 0 400
+        default 0
+    config PEN_RELEASE_DEG
+        int "RELEASE angle in degrees"
+        range 0 180
+        default 110
+    config PEN_PRESS_DEG
+        int "PRESS angle in degrees"
+        range 0 180
+        default 140
+    config PEN_PWM_MIN_US
+        int "Calibrated pulse width at 0 degrees, microseconds (0 = TBD)"
+        range 0 3000
+        default 0
+    config PEN_PWM_MAX_US
+        int "Calibrated pulse width at 180 degrees, microseconds (0 = TBD)"
+        range 0 3000
+        default 0
+    config PEN_DEBOUNCE_MS
+        int "Measured/qualified debounce time in milliseconds (0 = TBD)"
+        range 0 1000
+        default 0
+    config PEN_MAX_PRESS_MS
+        int "Maximum continuous press duration in milliseconds (0 = TBD)"
+        range 0 600000
+        default 0
+endmenu

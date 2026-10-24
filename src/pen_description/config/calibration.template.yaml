@@ -1,0 +1,65 @@
+# TBD: Sam fills measured transforms, payload, firmware/flow timing and qualification evidence. null never means identity.
+schema_version: 1
+profile_id: mocha-measured-TBD
+calibrated: false
+fake_only: false
+synthetic: false
+robot_sn: Rizon4s-063112
+world_frame: world
+surface:
+  type: sphere
+  radius_m: 0.04
+  frame_origin: sphere_center_or_plane_drawing_face
+T_world_surface:
+  xyz_m: null
+  quaternion_xyzw: null
+T_world_base:
+  xyz_m: null
+  quaternion_xyzw: null
+T_base_jig:
+  xyz_m: null
+  quaternion_xyzw: null
+T_flange_holder:
+  xyz_m: null
+  quaternion_xyzw: null
+T_holder_pen:
+  xyz_m: null
+  quaternion_xyzw: null
+T_flange_pen_tip:
+  xyz_m: null
+  quaternion_xyzw: null
+T_flange_rdk_tcp:
+  xyz_m: null
+  quaternion_xyzw: null
+rdk_tool_name: null
+payload:
+  mass_kg: null
+  com_m: null
+  inertia_kg_m2: null
+pen:
+  release_delay_s: null
+  press_delay_s: null
+  max_press_s: null
+qualified:
+  cartesian: false
+  rt: false
+tool_envelope:
+  radius_m: null
+  length_m: null
+routes:
+  approach: null
+  park: null
+notes: 'TBD: Sam fills measured transforms, payload, firmware/flow timing and qualification
+  evidence. null never means identity.'
+qualification:
+  rt: false
+  clearance: false
+  pen: false
+  tool: false
+camera:
+  enabled: false
+  model: D405
+  T_flange_camera:
+    xyz_m: null
+    quaternion_xyzw: null
+  note: 'TBD: measure camera mounting; video streaming does not establish this transform.'

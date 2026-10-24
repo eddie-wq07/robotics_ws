@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="pen_fixture" params="base jig_xyz jig_rpy surface_xyz surface_rpy surface_type">
+    <xacro:pen_mesh name="pen_jig" file="jig.stl"/>
+    <joint name="base_to_pen_jig" type="fixed"><parent link="${base}"/><child link="pen_jig"/><origin xyz="${jig_xyz}" rpy="${jig_rpy}"/></joint>
+    <link name="pen_surface">
+      <visual>
+        <origin xyz="0 0 ${-0.0025 if surface_type == 'plane' else 0}"/>
+        <geometry><mesh filename="package://pen_description/meshes/${'flat' if surface_type == 'plane' else 'sphere'}.stl" scale="1 1 1"/></geometry>
+      </visual>
+      <collision>
+        <origin xyz="0 0 ${-0.0025 if surface_type == 'plane' else 0}"/>
+        <geometry><mesh filename="package://pen_description/meshes/${'flat' if surface_type == 'plane' else 'sphere'}.stl" scale="1 1 1"/></geometry>
+      </collision>
+    </link>
+    <joint name="jig_to_pen_surface" type="fixed"><parent link="pen_jig"/><child link="pen_surface"/><origin xyz="${surface_xyz}" rpy="${surface_rpy}"/></joint>
+  </xacro:macro>
+</robot>

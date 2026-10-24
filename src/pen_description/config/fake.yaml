@@ -1,0 +1,155 @@
+# Fake-only profile. Fixture follows supplied jig placement and CAD flat-tab fit.
+# Tool settings remain synthetic; this profile never authorizes physical motion.
+schema_version: 1
+profile_id: synthetic-lab-cell-v1
+calibrated: false
+fake_only: true
+synthetic: true
+robot_sn: Rizon4s-000000
+world_frame: world
+surface:
+  type: plane
+  size_m:
+  - 0.08
+  - 0.1
+  - 0.0025
+  frame_origin: plane_drawing_face
+T_world_surface:
+  xyz_m:
+  - 0.508
+  - 0
+  - 0.05967
+  quaternion_xyzw:
+  - 0.0
+  - 0.0
+  - 1.0
+  - 0.0
+T_world_base:
+  xyz_m:
+  - 0
+  - 0
+  - 0
+  quaternion_xyzw:
+  - 0
+  - 0
+  - 0
+  - 1
+T_base_jig:
+  xyz_m:
+  - 0.508
+  - 0.0
+  - -0.01533
+  quaternion_xyzw:
+  - 0.0
+  - 0.0
+  - 0.7071067811865476
+  - 0.7071067811865476
+T_flange_holder:
+  xyz_m:
+  - -0.011
+  - 0.0
+  - 0.10379
+  quaternion_xyzw:
+  - 0.0
+  - 0.7071067811865476
+  - 0.0
+  - 0.7071067811865476
+T_holder_pen:
+  xyz_m:
+  - 0
+  - 0
+  - 0
+  quaternion_xyzw:
+  - 0
+  - 0
+  - 0
+  - 1
+T_flange_pen_tip:
+  xyz_m:
+  - 0.0019925841465592425
+  - -0.00229155644774437
+  - 0.2246989979529381
+  quaternion_xyzw:
+  - 0
+  - 0
+  - 0
+  - 1
+T_flange_rdk_tcp:
+  xyz_m:
+  - 0.0019925841465592425
+  - -0.00229155644774437
+  - 0.2246989979529381
+  quaternion_xyzw:
+  - 0
+  - 0
+  - 0
+  - 1
+rdk_tool_name: synthetic-pen
+payload:
+  mass_kg: 0.1
+  com_m:
+  - 0
+  - 0
+  - 0.07
+  inertia_kg_m2:
+  - 0.001
+  - 0.001
+  - 0.001
+  - 0
+  - 0
+  - 0
+pen:
+  release_delay_s: 0.1
+  press_delay_s: 1.0  # Provisional observed extrusion-start delay
+  max_press_s: 30.0
+qualified:
+  cartesian: false
+  rt: false
+tool_envelope:
+  radius_m: 0.005
+  length_m: 0.15
+routes:
+  approach: null
+  park: null
+notes: Synthetic numerical data only. Does not describe the physical assembly or authorize
+  motion.
+qualification:
+  rt: false
+  clearance: false
+  pen: false
+  tool: false
+camera:
+  enabled: true
+  model: D405
+  T_flange_camera:
+    xyz_m:
+    - -0.077
+    - -4.500007629394053e-05
+    - 0.02014
+    quaternion_xyzw:
+    - 0.7071067811865475
+    - 4.329780281177466e-17
+    - 0.7071067811865476
+    - 4.329780281177467e-17
+  note: Generic preview fit on the rear drilled plate, centered between its two holes.
+    Camera rear face seats at holder X=92 mm; front looks along the pen. Not measured
+    camera calibration.
+  preview_rear_plate_center_holder_m:
+  - 0.092
+  - 0
+  - -0.045
+
+visual_servo:
+  enabled: true
+  T_holder_servo:
+    xyz_m:
+    - -0.025
+    - -0.028
+    - 0.015
+    quaternion_xyzw:
+    - 0
+    - 0
+    - 0
+    - 1
+  note: Generic micro-servo preview beside the pen button; dimensions and placement
+    are approximate.

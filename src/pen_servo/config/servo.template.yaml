@@ -1,0 +1,26 @@
+board: esp32_devkit_v1
+input_gpio: 35
+input_active_low: true
+servo_gpio: 18
+command_unit: degrees
+release_deg: 110
+press_deg: 140
+calibrated: false
+pwm_hz: 50
+pulse_at_0_deg_us: 500
+pulse_at_180_deg_us: 2400
+debounce_ms: 10
+max_press_ms: 600000
+external_input_bias_verified: false
+mechanical_release_verified: false
+signal_levels_verified: true
+signal_level_verification:
+  source: User multimeter confirmation
+  do0_off_gpio35_v: 3.3
+  do0_on_gpio35_v_range:
+  - 0.0
+  - 0.2
+  inactive_on_disconnect_verified: false
+bench_test_enabled: true
+timing_note: Initial supervised bench settings; not measured flow delays or production
+  qualification.

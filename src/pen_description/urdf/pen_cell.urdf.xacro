@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="pen_cell">
+  <!-- Render through render_description: it validates calibration and derives these mappings. -->
+  <xacro:arg name="rizon_type" default="Rizon4s"/>
+  <xacro:arg name="robot_sn" default="Rizon4s-000000"/>
+  <xacro:arg name="ros2_control" default="false"/>
+  <xacro:arg name="use_fake_hardware" default="true"/>
+  <xacro:arg name="profile_calibrated" default="false"/>
+  <xacro:arg name="profile_fake_only" default="true"/>
+  <xacro:arg name="profile_id" default="TBD"/>
+  <xacro:arg name="surface_type" default="sphere"/>
+  <xacro:arg name="camera_enabled" default="false"/>
+  <xacro:arg name="camera_xyz" default="TBD"/><xacro:arg name="camera_rpy" default="TBD"/>
+  <xacro:arg name="visual_servo_enabled" default="false"/>
+  <xacro:arg name="visual_servo_xyz" default="TBD"/><xacro:arg name="visual_servo_rpy" default="TBD"/>
+  <xacro:arg name="T_world_base_xyz" default="TBD"/><xacro:arg name="T_world_base_rpy" default="TBD"/>
+  <xacro:arg name="T_base_jig_xyz" default="TBD"/><xacro:arg name="T_base_jig_rpy" default="TBD"/>
+  <xacro:arg name="T_jig_surface_xyz" default="TBD"/><xacro:arg name="T_jig_surface_rpy" default="TBD"/>
+  <xacro:arg name="T_flange_holder_xyz" default="TBD"/><xacro:arg name="T_flange_holder_rpy" default="TBD"/>
+  <xacro:arg name="T_holder_pen_xyz" default="TBD"/><xacro:arg name="T_holder_pen_rpy" default="TBD"/>
+  <xacro:arg name="T_flange_pen_tip_xyz" default="TBD"/><xacro:arg name="T_flange_pen_tip_rpy" default="TBD"/>
+  <xacro:arg name="T_flange_rdk_tcp_xyz" default="TBD"/><xacro:arg name="T_flange_rdk_tcp_rpy" default="TBD"/>
+  <xacro:if value="${'$(arg profile_id)' == 'TBD'}"><xacro:property name="invalid" value="${xacro.fatal('Use render_description with a valid calibration profile')}" lazy_eval="false"/></xacro:if>
+  <xacro:unless value="$(arg use_fake_hardware)">
+    <xacro:unless value="$(arg profile_calibrated)"><xacro:property name="invalid" value="${xacro.fatal('Real pen cell requires measured calibration')}" lazy_eval="false"/></xacro:unless>
+    <xacro:if value="$(arg profile_fake_only)"><xacro:property name="invalid" value="${xacro.fatal('Synthetic pen cell cannot load real hardware')}" lazy_eval="false"/></xacro:if>
+  </xacro:unless>
+  <xacro:include filename="$(find flexiv_description)/urdf/common/rizon_robot.xacro"/>
+  <xacro:include filename="pen_tool.xacro"/>
+  <xacro:include filename="pen_fixture.xacro"/>
+  <xacro:include filename="pen_accessories.xacro"/>
+  <xacro:rizon_robot rizon_type="$(arg rizon_type)" robot_sn="$(arg robot_sn)"
+    joint_limits_parameters_file="$(find flexiv_description)/config/$(arg rizon_type)/joint_limits.yaml"
+    kinematics_parameters_file="$(find flexiv_description)/config/$(arg rizon_type)/default_kinematics.yaml"
+    inertia_parameters_file="$(find flexiv_description)/config/$(arg rizon_type)/inertia_parameters.yaml"
+    visual_parameters_file="$(find flexiv_description)/config/$(arg rizon_type)/visual_parameters.yaml"
+    base_xyz="$(arg T_world_base_xyz)" base_rpy="$(arg T_world_base_rpy)"
+    ros2_control="$(arg ros2_control)" use_fake_hardware="$(arg use_fake_hardware)"/>
+  <xacro:pen_tool flange="$(arg robot_sn)_flange"
+    holder_xyz="$(arg T_flange_holder_xyz)" holder_rpy="$(arg T_flange_holder_rpy)"
+    pen_xyz="$(arg T_holder_pen_xyz)" pen_rpy="$(arg T_holder_pen_rpy)"
+    tip_xyz="$(arg T_flange_pen_tip_xyz)" tip_rpy="$(arg T_flange_pen_tip_rpy)"
+    tcp_xyz="$(arg T_flange_rdk_tcp_xyz)" tcp_rpy="$(arg T_flange_rdk_tcp_rpy)"/>
+  <xacro:pen_fixture base="$(arg robot_sn)_base_link"
+    jig_xyz="$(arg T_base_jig_xyz)" jig_rpy="$(arg T_base_jig_rpy)"
+    surface_xyz="$(arg T_jig_surface_xyz)" surface_rpy="$(arg T_jig_surface_rpy)"
+    surface_type="$(arg surface_type)"/>
+  <xacro:if value="$(arg camera_enabled)">
+    <xacro:include filename="$(find realsense2_description)/urdf/_d405.urdf.xacro"/>
+    <xacro:sensor_d405 parent="$(arg robot_sn)_flange" name="camera" use_nominal_extrinsics="false">
+      <origin xyz="$(arg camera_xyz)" rpy="$(arg camera_rpy)"/>
+    </xacro:sensor_d405>
+  </xacro:if>
+  <xacro:if value="$(arg visual_servo_enabled)">
+    <xacro:unless value="$(arg profile_fake_only)"><xacro:property name="invalid_servo" value="${xacro.fatal('Generic servo is preview/fake-only')}" lazy_eval="false"/></xacro:unless>
+    <xacro:pen_visual_servo parent="pen_holder" xyz="$(arg visual_servo_xyz)" rpy="$(arg visual_servo_rpy)"/>
+  </xacro:if>
+</robot>

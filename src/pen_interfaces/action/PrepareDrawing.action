@@ -1,0 +1,9 @@
+string request_json
+string output_directory
+---
+bool success
+string artifact_path
+string message
+---
+string stage
+float32 progress

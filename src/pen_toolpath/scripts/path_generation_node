@@ -1,0 +1,3 @@
+#!/usr/bin/python3
+from pen_image_processing.node import main
+main('path')

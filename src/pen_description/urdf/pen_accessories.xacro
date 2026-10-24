@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!-- Approximate micro-servo, for preview only. Dimensions are not calibration. -->
+  <xacro:macro name="pen_visual_servo" params="parent xyz rpy">
+    <joint name="holder_to_visual_servo" type="fixed">
+      <parent link="${parent}"/><child link="pen_visual_servo"/>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+    </joint>
+    <link name="pen_visual_servo">
+      <visual name="servo_case">
+        <geometry><box size="0.028 0.013 0.025"/></geometry>
+        <material name="servo_blue"><color rgba="0.12 0.30 0.62 1"/></material>
+      </visual>
+      <visual name="servo_mount_ears">
+        <origin xyz="0 0 0.008"/>
+        <geometry><box size="0.038 0.013 0.003"/></geometry>
+        <material name="servo_blue"/>
+      </visual>
+      <visual name="servo_output_shaft">
+        <origin xyz="0.008 0.009 0" rpy="1.5707963267948966 0 0"/>
+        <geometry><cylinder radius="0.004" length="0.006"/></geometry>
+        <material name="servo_white"><color rgba="0.9 0.9 0.88 1"/></material>
+      </visual>
+      <visual name="servo_horn">
+        <origin xyz="0 0.013 0"/>
+        <geometry><box size="0.026 0.002 0.005"/></geometry>
+        <material name="servo_white"/>
+      </visual>
+    </link>
+  </xacro:macro>
+</robot>

@@ -1,0 +1,1 @@
+Viewer styling and helpers recovered from 3d-pen commit 90802bd, adapting gilwoolee/3d_art. See LICENSE-3d_art.txt. Three.js 0.186.1: see vendor/three/LICENSE.

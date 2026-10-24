@@ -1,0 +1,10 @@
+string job_path
+string expected_sha256
+bool air_run
+---
+bool success
+string message
+---
+string phase
+float32 progress
+uint32 sample_index

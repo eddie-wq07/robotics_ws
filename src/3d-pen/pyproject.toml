@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tactile"
+version = "0.2.0"
+description = "Image-to-surface toolpaths for a Flexiv 3D pen; MoveIt/RViz integration"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=2,<3", "scipy>=1.14,<2", "shapely>=2,<3", "trimesh>=5,<6",
+  "Pillow>=11", "opencv-python-headless>=4.10", "scikit-image>=0.24", "PyYAML>=6,<7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+tactile = "tactile.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tactile"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

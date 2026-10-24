@@ -1,0 +1,7 @@
+<library path="flexiv_cartesian_controller">
+  <class name="flexiv_cartesian_controller/FlexivCartesianController"
+    type="flexiv_cartesian_controller::FlexivCartesianController"
+    base_class_type="controller_interface::ControllerInterface">
+    <description>Direct Cartesian pose forwarding with exclusive joint resources and freshness checks.</description>
+  </class>
+</library>

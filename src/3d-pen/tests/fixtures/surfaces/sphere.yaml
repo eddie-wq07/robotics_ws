@@ -1,0 +1,8 @@
+# A ball resting on the build plate, marker on top: drawn from above, with the
+# pen leaning as the ball curves away.
+type: sphere
+radius_m: 0.075
+position_m: [0.0, 0.0]          # where the ball touches the plate (build frame)
+marker:
+  azimuth_deg: 0                # at the top, the marker's "up" points toward the robot
+  elevation_deg: 90             # 90 = the top of the ball

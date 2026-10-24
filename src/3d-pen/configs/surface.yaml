@@ -1,0 +1,11 @@
+# The printed hemisphere: 75 mm radius, flat face down on a 40 mm riser on its
+# mounting flange, marker on top. The model is the whole ball, whose lower half
+# covers the narrower riser.
+type: sphere
+fixture: hemisphere
+radius_m: 0.075
+position_m: [0.0, 0.0]
+raise_m: -0.035                 # centre 40 mm above the flange: riser height minus the radius
+marker:
+  azimuth_deg: 0
+  elevation_deg: 90

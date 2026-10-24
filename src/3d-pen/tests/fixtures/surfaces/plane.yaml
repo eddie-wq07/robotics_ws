@@ -1,0 +1,7 @@
+# A 100 x 100 x 6 mm tile lying on the build plate, marker on its top face.
+type: plane
+size_m: [0.100, 0.100, 0.006]   # width, depth, thickness
+position_m: [0.0, 0.0]          # tile centre on the plate (build frame)
+marker:
+  center_m: [0.0, 0.0]          # on the tile's top face
+  rotation_deg: 0               # 0: readable from the front of the robot cell

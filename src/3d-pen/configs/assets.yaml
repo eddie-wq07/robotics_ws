@@ -1,0 +1,17 @@
+# Optional actual CAD, one entry per physical part. Original files stay in assets/source/.
+# Downloaded Onshape STLs: assets/source/onshape/README.md (all in meters).
+# Activation awaits CAD-to-robot placement; sphere radius is 0.040 m, not the nominal 0.075 m.
+# units: m/mm/cm; frame: world (robot base), build (jig top), or flange (moving tool).
+# Position is in meters, rotation is XYZ Euler degrees. GLB node transforms are retained.
+# replaces removes the nominal category in the SAME frame, e.g. riser or d405_camera.
+# A convex hull is used for each imported collision object. Export separate parts
+# when one hull would fill necessary gaps. Surface paths remain analytical.
+# Example entry:
+# - name: actual_support
+#   file: assets/source/support.stl
+#   units: mm
+#   frame: build
+#   position_m: [0, 0, 0]
+#   rotation_deg: [0, 0, 0]
+#   replaces: riser
+assets: []

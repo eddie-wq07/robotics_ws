@@ -1,0 +1,39 @@
+# Nominal geometry; replace with measured CAD in assets.yaml. Units: m.
+base:
+  size_m:
+  - 0.18
+  - 0.18
+  - 0.01
+  pins_m:
+  - - -0.06
+    - 0.0
+  - - 0.045
+    - 0.0
+  pin_diameter_m: 0.006
+  pin_proud_m: 0.006
+  screws_m:
+  - - -0.07
+    - -0.07
+  - - -0.07
+    - 0.07
+  - - 0.07
+    - -0.07
+  - - 0.07
+    - 0.07
+  screw: M4
+flange:
+  size_m:
+  - 0.18
+  - 0.18
+  - 0.008
+stand:
+  kind: '8020'
+  profile_m: 0.02
+  footprint_m:
+  - 0.18
+  - 0.18
+surfaces:
+  hemisphere:
+    file: configs/surface.yaml
+    riser_m: 0.04
+    riser_diameter_m: 0.1

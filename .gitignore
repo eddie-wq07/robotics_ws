@@ -1,0 +1,32 @@
+# Track workspace source and this policy only.
+/*
+!/.gitignore
+!/src/
+
+# Preserve nested repositories locally; never commit their Git metadata.
+/src/**/.git
+
+# Generated builds, fetched dependencies, and caches anywhere under src.
+**/build/
+**/install/
+**/log/
+**/.cache/
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/*.egg-info/
+**/node_modules/
+**/.venv/
+**/.venv-*/
+/src/flexiv_rdk/thirdparty/cloned/
+
+# Local firmware configuration and machine/secret files.
+/src/pen_servo/firmware/pen_servo_esp32/sdkconfig
+/src/pen_servo/firmware/pen_servo_esp32/sdkconfig.old
+**/.env
+**/.env.local
+**/.env.*.local
+**/*.pem
+**/*.key
+**/.DS_Store

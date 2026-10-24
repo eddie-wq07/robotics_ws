@@ -1,0 +1,80 @@
+/**
+ * @file gpio_controller.hpp
+ * @brief GPIO controller as ROS 2 controller. Adapted from
+ * ros2_control_demos/example_10/gpio_controller
+ * @copyright Copyright (C) 2016-2024 Flexiv Ltd. All Rights Reserved.
+ * @author Flexiv
+ */
+
+#ifndef GPIO_CONTROLLER__GPIO_CONTROLLER_HPP_
+#define GPIO_CONTROLLER__GPIO_CONTROLLER_HPP_
+
+#include <memory>
+#include <array>
+#include <atomic>
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#include "controller_interface/controller_interface.hpp"
+#include "gpio_controller/gpio_controller_parameters.hpp"
+#include "flexiv_msgs/msg/gpio_states.hpp"
+#include "realtime_tools/realtime_buffer.hpp"
+#include "realtime_tools/realtime_publisher.hpp"
+
+namespace gpio_controller {
+
+/** Number of digital IO ports (16 on control box + 2 inside the wrist connector) */
+constexpr size_t kIOPorts = 18;
+
+const std::string kGPIOInputsTopic = "/gpio_inputs";
+const std::string kGPIOOutputsTopic = "/gpio_outputs";
+
+using CmdType = flexiv_msgs::msg::GPIOStates;
+
+class GPIOController : public controller_interface::ControllerInterface
+{
+public:
+    GPIOController();
+
+    controller_interface::InterfaceConfiguration command_interface_configuration() const override;
+
+    controller_interface::InterfaceConfiguration state_interface_configuration() const override;
+
+    controller_interface::return_type update(
+        const rclcpp::Time& time, const rclcpp::Duration& period) override;
+
+    CallbackReturn on_init() override;
+
+    CallbackReturn on_configure(const rclcpp_lifecycle::State& previous_state) override;
+
+    CallbackReturn on_activate(const rclcpp_lifecycle::State& previous_state) override;
+
+    CallbackReturn on_deactivate(const rclcpp_lifecycle::State& previous_state) override;
+
+protected:
+    std::shared_ptr<ParamListener> param_listener_;
+    Params params_;
+
+    void initMsgs();
+
+    // internal commands
+    struct Outputs {
+        std::array<double, kIOPorts> values{};
+        uint64_t generation = 0;
+    };
+    Outputs pending_outputs_;
+    realtime_tools::RealtimeBuffer<Outputs> outputs_buffer_;
+    std::atomic<bool> active_{false};
+    std::atomic<uint64_t> generation_{0};
+
+    // publisher
+    std::shared_ptr<rclcpp::Publisher<CmdType>> gpio_inputs_publisher_;
+    std::unique_ptr<realtime_tools::RealtimePublisher<CmdType>> realtime_inputs_publisher_;
+
+    // subscriber
+    rclcpp::Subscription<CmdType>::SharedPtr gpio_outputs_command_;
+};
+
+} /* namespace gpio_controller */
+#endif /* GPIO_CONTROLLER__GPIO_CONTROLLER_HPP_ */

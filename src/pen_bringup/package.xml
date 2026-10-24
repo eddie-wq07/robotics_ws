@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>pen_bringup</name><version>0.1.0</version>
+  <description>Browser and launch integration for the modular Flexiv pen pipeline.</description>
+  <maintainer email="robotics@example.com">Mocha robotics</maintainer><license>Proprietary</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>rclpy</exec_depend><exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch_ros</exec_depend><exec_depend>pen_interfaces</exec_depend>
+  <exec_depend>pen_image_processing</exec_depend><exec_depend>pen_toolpath</exec_depend>
+  <exec_depend>pen_execution</exec_depend><exec_depend>pen_description</exec_depend>
+  <exec_depend>pen_servo</exec_depend><exec_depend>flexiv_cartesian_controller</exec_depend>
+  <exec_depend>diagnostic_msgs</exec_depend><exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend><exec_depend>std_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <test_depend>python3-pytest</test_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>

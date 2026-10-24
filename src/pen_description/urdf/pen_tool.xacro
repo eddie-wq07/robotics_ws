@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="pen_mesh" params="name file">
+    <link name="${name}">
+      <visual><geometry><mesh filename="package://pen_description/meshes/${file}" scale="1 1 1"/></geometry></visual>
+      <collision><geometry><mesh filename="package://pen_description/meshes/${file}" scale="1 1 1"/></geometry></collision>
+    </link>
+  </xacro:macro>
+  <xacro:macro name="pen_tool" params="flange holder_xyz holder_rpy pen_xyz pen_rpy tip_xyz tip_rpy tcp_xyz tcp_rpy">
+    <xacro:pen_mesh name="pen_holder" file="pen_holder_combined.stl"/>
+    <joint name="flange_to_pen_holder" type="fixed"><parent link="${flange}"/><child link="pen_holder"/><origin xyz="${holder_xyz}" rpy="${holder_rpy}"/></joint>
+    <!-- The combined CAD already contains the seated pen. Keep its legacy frame,
+         but do not draw a second, independently placed pen. -->
+    <link name="pen_body"/>
+    <joint name="holder_to_pen_body" type="fixed"><parent link="pen_holder"/><child link="pen_body"/><origin xyz="${pen_xyz}" rpy="${pen_rpy}"/></joint>
+    <link name="pen_tip"/>
+    <joint name="flange_to_pen_tip" type="fixed"><parent link="${flange}"/><child link="pen_tip"/><origin xyz="${tip_xyz}" rpy="${tip_rpy}"/></joint>
+    <link name="pen_rdk_tcp"/>
+    <joint name="flange_to_pen_rdk_tcp" type="fixed"><parent link="${flange}"/><child link="pen_rdk_tcp"/><origin xyz="${tcp_xyz}" rpy="${tcp_rpy}"/></joint>
+  </xacro:macro>
+</robot>

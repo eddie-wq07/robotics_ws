@@ -1,0 +1,114 @@
+# Display-only CAD registration. Never consumed by planning or execution.
+# Holder mating face: x=103.8 mm; centre y=0, z=11 mm; normal +X.
+# Vendor flange face: z=123.99 mm in link7, or -0.01 mm in flange.
+# Both patterns have four holes on a 50 mm bolt circle.
+holder_mount:
+  xyz_m:
+  - -0.011
+  - 0.0
+  - 0.10379
+  quaternion_xyzw:
+  - 0.0
+  - 0.7071067811865476
+  - 0.0
+  - 0.7071067811865476
+  holder_holes_m:
+  - - 0.10379999876022339
+    - 0.01767766954721105
+    - 0.02867766958222899
+  - - 0.10379999876022339
+    - -0.01767766954034563
+    - -0.006677669530118891
+  - - 0.10379999876022339
+    - 0.01767766954472077
+    - -0.006677669525610767
+  - - 0.10379999876022339
+    - -0.01767766954664101
+    - 0.02867766958385788
+  flange_holes_m:
+  - - 0.01767249990221945
+    - -0.017672499902219457
+    - -9.999999999996123e-06
+  - - -0.017672499902219457
+    - -0.017672499902219453
+    - -9.999999999996123e-06
+  - - -0.017672499902219425
+    - 0.017672499902219467
+    - -9.999999999996123e-06
+  - - 0.017672499902219446
+    - 0.017672499902219446
+    - -9.999999999996123e-06
+  max_hole_center_error_m: 7.311007675088322e-06
+  note: Combined holder/pen assembly; matched four mounting holes and mating face.
+    Pen orientation and seating are encoded in the combined CAD. Physical flange clocking
+    remains unconfirmed.
+  holder_mesh_file: pen_holder_combined.stl
+  holder_mesh_sha256: 42303ac30785330238db1a7bc1e03704852edd3760e00e2315c8a09dd84da257
+  flange_mesh_sha256: b16e1d1f6f18adf0b57a5f777690115679725539cc9eaa852ee84c79c6ff4afa
+  pen_tip_cad_m:
+  - -0.12090899795293808
+  - -0.0022915564477443695
+  - 0.012992584146559238
+  pen_tip_flange_m:
+  - 0.0019925841465592425
+  - -0.00229155644774437
+  - 0.2246989979529381
+  mesh_material_groups:
+  - component: pen_body
+    start_vertex: 0
+    vertex_count: 239064
+  - component: pen_holder
+    start_vertex: 239064
+    vertex_count: 26646
+sphere_mount:
+  # Pose of sphere.stl in jig.stl coordinates. Sphere origin is its center.
+  xyz_m: [0.0, 0.0, 0.07375]
+  quaternion_xyzw: [0.0, 0.0, 0.7071067811865476, 0.7071067811865476]
+  fastener: M4
+  clearance_diameter_m: 0.0045
+  sphere_hole_centers_m:
+    - [-0.007, -0.046, -0.00125]
+    - [0.007, -0.046, -0.00125]
+    - [-0.007, 0.046, -0.00125]
+    - [0.007, 0.046, -0.00125]
+  jig_hole_centers_m:
+    - [0.046, -0.007, 0.0725]
+    - [0.046, 0.007, 0.0725]
+    - [-0.046, -0.007, 0.0725]
+    - [-0.046, 0.007, 0.0725]
+  note: CAD registration of the sphere's built-in tabs; tab undersides seat at jig Z=72.5 mm and tops at Z=75 mm. Physical fit remains unverified.
+  sphere_mesh_sha256: c5911415f6d86aff1ec155cba07f3dc3807f1d36a2824ff9d635a7e4fbcc3405
+  jig_mesh_sha256: c577f52b159687ea5f6f087bc48f9e7a2cb2ca4d1d186eb17d94fef2f0bb43c0
+
+# Display pose only; never published as robot commands. Refresh with a new read.
+joint_snapshot:
+  source: read-only RDK snapshot
+  robot_sn: Rizon4s-063112
+  read_started_utc: '2026-10-24T08:40:44Z'
+  positions_rad:
+  - -0.2633132040500641
+  - 0.004709153436124325
+  - 0.5238528847694397
+  - 2.344208002090454
+  - 0.012280318886041641
+  - 0.834570050239563
+  - 0.26720643043518066
+  stopped: true
+
+flat_mount:
+  xyz_m:
+  - 0
+  - 0
+  - 0.075
+  quaternion_xyzw:
+  - 0
+  - 0
+  - 0.7071067811865476
+  - 0.7071067811865476
+  fastener: M4
+  clearance_diameter_m: 0.0045
+  flat_mesh_sha256: 12db2ee6b42328e074819f8ff9da45819752011d1f767b73351dca70786bb0bb
+  jig_mesh_sha256: c577f52b159687ea5f6f087bc48f9e7a2cb2ca4d1d186eb17d94fef2f0bb43c0
+  note: Frame is the drawing face. Flat STL is shifted -2.5 mm locally; undersides
+    seat at jig Z=72.5 mm and tops at Z=75 mm. Four M4 clearance holes align after
+    a 90-degree rotation.

@@ -1,0 +1,11 @@
+/**/flexiv_cartesian_controller:
+  ros__parameters:
+    update_rate: 1000
+    require_rt_scheduling: true
+    # resource and joints are generated from the robot prefix by load_controller.launch.py.
+    world_frame: world
+    command_timeout: 0.1
+    max_translation_jump: 0.05  # metres from measured TCP
+    max_rotation_jump: 0.35     # radians from measured orientation
+    max_cycle_gap: 0.02         # seconds; latches stop on a stalled update loop
+    state_rate: 100.0

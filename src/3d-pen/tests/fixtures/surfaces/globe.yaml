@@ -1,0 +1,13 @@
+# A ball as a globe: the northern hemisphere down to 7.5 N (just below the
+# tip of India), North Pole on top. The picture must be a polar azimuthal-
+# equidistant map whose edge is that latitude (examples/globe.png), made with
+#   tactile relief examples/globe.png --whole-picture --size-mm 216.0
+# where 216.0 mm = 2 x 75 mm x 82.5 degrees (in radians): the arc from the
+# pole to 7.5 N and back across, so the picture's edge lands on 7.5 N.
+type: sphere
+radius_m: 0.075
+position_m: [-0.03, 0.0]        # 3 cm toward the robot: the far side stays within easy reach
+projection: azimuthal_equidistant
+marker:
+  azimuth_deg: 0                # at the top, the map's "up" points toward the robot
+  elevation_deg: 90             # the pole is the top of the ball

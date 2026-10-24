@@ -1,0 +1,12 @@
+# A drinks can lying on its side on the build plate, marker on top: drawn from
+# above, with the pen leaning as the can curves away. See can_upright.yaml
+# puts the marker on the side of a standing can instead.
+type: cylinder
+radius_m: 0.033
+height_m: 0.115
+lying: true
+axis_azimuth_deg: 0             # the can's axis points away from the robot (+x)
+position_m: [0.0, 0.0]          # centre of the can on the plate (build frame)
+marker:
+  azimuth_deg: 0                # 0 = the top of the can
+  along_m: 0.0                  # marker centre along the axis, from the can's middle

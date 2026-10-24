@@ -1,0 +1,28 @@
+cmake_minimum_required(VERSION 3.16)
+project(flexiv_cartesian_controller)
+find_package(ament_cmake REQUIRED)
+find_package(controller_interface REQUIRED)
+find_package(controller_manager_msgs REQUIRED)
+find_package(hardware_interface REQUIRED)
+find_package(pluginlib REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(realtime_tools REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(diagnostic_msgs REQUIRED)
+add_library(${PROJECT_NAME} SHARED src/cartesian_controller.cpp)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
+target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic)
+target_include_directories(${PROJECT_NAME} PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+ament_target_dependencies(${PROJECT_NAME} controller_interface controller_manager_msgs
+  hardware_interface pluginlib rclcpp realtime_tools geometry_msgs diagnostic_msgs)
+pluginlib_export_plugin_description_file(controller_interface flexiv_cartesian_controller_plugins.xml)
+install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib)
+install(DIRECTORY include/ DESTINATION include)
+install(DIRECTORY config launch DESTINATION share/${PROJECT_NAME})
+ament_export_libraries(${PROJECT_NAME})
+ament_export_dependencies(controller_interface)
+install(PROGRAMS scripts/cartesian_offset_test.py
+  DESTINATION lib/${PROJECT_NAME} RENAME cartesian_offset_test)
+ament_package()

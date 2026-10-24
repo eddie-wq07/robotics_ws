@@ -1,0 +1,8 @@
+# A drinks can standing on the build plate, marker on its side (pen held horizontal).
+type: cylinder
+radius_m: 0.033
+height_m: 0.115
+position_m: [0.0, 0.0]          # centre of the can's base on the plate (build frame)
+marker:
+  azimuth_deg: -90              # the side facing -y (0 = +x, away from the robot)
+  height_m: 0.060               # marker centre above the plate

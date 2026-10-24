@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>pen_execution</name><version>0.1.0</version>
+  <description>Validated drawing-job executor using the existing Flexiv controllers.</description>
+  <maintainer email="engineering@industrialnext.ai">Industrial Next</maintainer>
+  <license>Proprietary</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rclcpp</depend><depend>rclcpp_action</depend><depend>pen_interfaces</depend>
+  <depend>controller_manager_msgs</depend><depend>control_msgs</depend>
+  <depend>geometry_msgs</depend><depend>sensor_msgs</depend><depend>diagnostic_msgs</depend>
+  <depend>flexiv_msgs</depend><depend>std_msgs</depend><depend>std_srvs</depend>
+  <depend>yaml-cpp</depend><depend>openssl</depend>
+  <exec_depend>launch</exec_depend><exec_depend>launch_ros</exec_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>

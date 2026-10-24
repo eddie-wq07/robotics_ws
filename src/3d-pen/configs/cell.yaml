@@ -1,0 +1,39 @@
+# Nominal geometry in meters. Robot model and kinematics come from Flexiv ROS.
+robot:
+  model: Rizon4s
+jig_config: configs/jig.yaml
+assets_config: configs/assets.yaml
+plate:
+  size_m:
+  - 0.18
+  - 0.18
+  center_m:
+  - 0.45
+  - 0.0
+  top_z_m: 0.18
+pen:
+  length_m: 0.225
+  body_radius_m: 0.012
+  nose_length_m: 0.027
+  tip_radius_m: 0.0005
+  accessories:
+  - name: d405_camera
+    size_m:
+    - 0.042
+    - 0.042
+    - 0.023
+    position_m:
+    - 0.055
+    - 0.0
+    - 0.025
+    status: "placeholder \u2014 body dimensions from team list; mount position unmeasured"
+  - name: extrusion_servo
+    size_m:
+    - 0.025
+    - 0.015
+    - 0.03
+    position_m:
+    - 0.03
+    - 0.0
+    - 0.1
+    status: "placeholder \u2014 servo envelope and mount position unmeasured"
