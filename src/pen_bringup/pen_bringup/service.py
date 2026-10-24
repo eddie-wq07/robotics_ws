@@ -48,6 +48,11 @@ class Workflow:
             raise WorkflowError('Real mode requires an explicit measured calibration profile')
         self.profile = Path(profile).resolve() if profile else None
         self.mode, self.bridge = mode, bridge
+        self.default_selection = {}
+        if self.profile and self.profile.is_file():
+            config = yaml.safe_load(self.profile.read_text())
+            if isinstance(config, dict) and isinstance(config.get('selection'), dict):
+                self.default_selection = config['selection']
         self.model_provider = None
         self.inputs.mkdir(parents=True, exist_ok=True)
         self.outputs.mkdir(parents=True, exist_ok=True)
@@ -403,6 +408,7 @@ class Workflow:
                 self.last_browser = time.monotonic()
             return {'mode': self.mode, 'inputs': sorted(p.name for p in self.inputs.iterdir()
                     if p.is_file() and p.suffix.lower() in ('.png', '.jpg', '.jpeg')),
+                    'default_selection': self.default_selection,
                     'active_job': self.active_job,
                     'jobs': [self.public_job(j) for j in self.jobs.values() if j['owner'] == key][-30:],
                     'robot': self.bridge.snapshot() if self.bridge else {}}

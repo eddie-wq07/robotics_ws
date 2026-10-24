@@ -17,7 +17,7 @@ after changing the canonical assets.
 
 ## Calibration
 
-`config/real_robot_1000hz_5mm.yaml` is the complete saved real-robot configuration
+`config/sphere.yaml` is the complete saved real-robot configuration
 restored at the 1000 Hz / 5 mm tracking-limit checkpoint. It includes all measured
 transforms, tool and payload data, fixture registration, Home and approach routes,
 pen timing, drawing motion, selected artwork/fill, executor parameters, Cartesian

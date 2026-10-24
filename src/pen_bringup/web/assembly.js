@@ -523,23 +523,28 @@ async function refresh(){
   if(active){$('#mode').textContent=`${modeLabel} · live execution`;$('#mode').title='Execution feedback and live joint states';}
   if(needsFrame && Object.keys(displayedJoints || {}).length){fitCell();needsFrame=false;}
   controls();
+  return state;
 }
 function animate(now){if(previous&&playing&&robotPreview){draw(at+(now-previous)/1000*Number($('#rate').value));if(at>=robotPreview.duration_s){playing=false;$('#play').textContent='Play';controls();}}previous=now;requestAnimationFrame(animate);}
 requestAnimationFrame(animate);
-Promise.all([refresh(),loadModel().catch(error=>{message(`Robot model unavailable: ${error.message}`);})]).then(()=>{
+Promise.all([refresh(),loadModel().catch(error=>{message(`Robot model unavailable: ${error.message}`);})]).then(([state])=>{
   initialized=true;
   if(generation===0){
     try{
       const query=new URLSearchParams(location.search);
       const saved=query.has('size_mm') ? {
         image:query.get('image'),surface:query.get('surface'),size_mm:Number(query.get('size_mm')),
-      } : JSON.parse(localStorage.getItem('pen-selection'));
+      } : (JSON.parse(localStorage.getItem('pen-selection')) || state.default_selection);
       if(saved && [...$('#marker').options].some(option=>option.value===saved.image) &&
           ['plane','sphere'].includes(saved.surface) && Number.isFinite(saved.size_mm) && saved.size_mm>=1 && saved.size_mm<=100){
         $('#marker').value=saved.image;$('#surface').value=saved.surface;$('#size').value=saved.size_mm;
         if(query.has('size_mm'))history.replaceState(null,'',location.pathname+location.hash);
       }
     }catch{}
+  }
+  if(state.default_selection?.image===$('#marker').value &&
+      !Object.hasOwn(fillChoices,$('#marker').value)){
+    fillChoices[$('#marker').value]=state.default_selection.fill===true;
   }
   restoreFill();
   if(generation===0 && !active && $('#marker').value)invalidate().catch(e=>message(e.message));
