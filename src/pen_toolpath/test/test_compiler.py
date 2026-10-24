@@ -158,10 +158,11 @@ def test_endpoint_extrusion_dwell_precedes_release_and_respects_recycle_limit(co
 
 
 @pytest.mark.parametrize('continuous',[False,True])
-def test_lifted_stroke_leads_are_independent_of_recycle_lead(continuous):
+@pytest.mark.parametrize('start_dwell,end_dwell',[(.75,.75),(.8,.5)])
+def test_lifted_stroke_leads_are_independent_of_recycle_lead(continuous,start_dwell,end_dwell):
     profile=synthetic_profile('plane')
-    profile['pen'].update(press_delay_s=.75,recycle_press_delay_s=.5,
-                          end_extrusion_dwell_s=.75,release_delay_s=0.)
+    profile['pen'].update(press_delay_s=start_dwell,recycle_press_delay_s=.5,
+                          end_extrusion_dwell_s=end_dwell,release_delay_s=0.)
     source={'kind':'pen_drawing','schema_version':1,'units':'m','strokes':[
         {'id':'line','points_m':[[-.025,0],[.025,0]]}]}
     job,_,_=compile_drawing(source,surface='plane',profile=profile,
@@ -172,7 +173,7 @@ def test_lifted_stroke_leads_are_independent_of_recycle_lead(continuous):
     assert rows[starts[0]-1]['phase']=='LOWER'
     for n,start in enumerate(starts):
         moved=next(row for row in rows[start+1:] if row['pose']!=rows[start]['pose'])
-        assert moved['time_s']-rows[start]['time_s']==pytest.approx(.75 if n==0 else .5,abs=.02)
+        assert moved['time_s']-rows[start]['time_s']==pytest.approx(start_dwell if n==0 else .5,abs=.02)
         if n:
             off=start-1
             while off>0 and not rows[off-1]['extrude']:off-=1
@@ -181,7 +182,7 @@ def test_lifted_stroke_leads_are_independent_of_recycle_lead(continuous):
     end=max(i for i,row in enumerate(rows) if row['extrude'])
     hold=end
     while rows[hold-1]['extrude'] and rows[hold-1]['pose']==rows[end]['pose']:hold-=1
-    assert rows[end]['time_s']-rows[hold]['time_s']==pytest.approx(.75,abs=1e-8)
+    assert rows[end]['time_s']-rows[hold]['time_s']==pytest.approx(end_dwell,abs=1e-8)
     assert not rows[end+1]['extrude'] and rows[end+2]['phase']=='LIFT'
 
 

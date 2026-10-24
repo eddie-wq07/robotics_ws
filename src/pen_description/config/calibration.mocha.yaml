@@ -100,7 +100,7 @@ payload:
   - -3.720149948094331e-07
 pen:
   release_delay_s: 0.0
-  press_delay_s: 0.5
+  press_delay_s: 0.8
   recycle_press_delay_s: 0.5
   end_extrusion_dwell_s: 0.5
   max_press_s: 600.0

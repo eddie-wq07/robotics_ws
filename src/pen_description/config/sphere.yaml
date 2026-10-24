@@ -99,7 +99,7 @@ payload:
   - -3.720149948094331e-07
 pen:
   release_delay_s: 0.0
-  press_delay_s: 0.5
+  press_delay_s: 0.8
   end_extrusion_dwell_s: 0.5
   max_press_s: 600.0
   press_angle_deg: 140
@@ -2286,7 +2286,7 @@ routes:
       - -0.2317142959806171
       - 0.8022245394030098
       - -1.1894662691774567
-    minimum_tool_sphere_clearance_m: 0.00631848716877044
+    minimum_tool_sphere_clearance_m: 0.0015
     validation: URDF joint limits and tool capsule versus CAD sphere checked; operator approved entire
       arm, holder and cable path. First physical replay remains pending.
     operator_path_clear_confirmed: true
@@ -3825,8 +3825,8 @@ drawing:
   sample_rate_hz: 1000
   draw_speed_scale: 3.0
   non_extruding_speed_scale: 3.0
-  speed_m_s: 0.006
-  travel_speed_m_s: 0.015
+  speed_m_s: 0.004
+  travel_speed_m_s: 0.0075
   approach_speed_scale: 1.0
 home:
   controller: rizon_arm_controller

@@ -80,7 +80,7 @@ Motion settings are independent in each surface's calibration profile:
 `drawing.speed_m_s`, `drawing.travel_speed_m_s`, `drawing.approach_speed_scale`,
 and `pen.stand_off_m`. The flat venue profile's base speeds are 0.012 m/s drawing,
 0.030 m/s travel, 2x initial setup, and 0.0013 m tip stand-off. The sphere
-profile's base speeds are 0.006 m/s drawing, 0.015 m/s travel, 1x initial setup, and
+profile's base speeds are 0.004 m/s drawing, 0.0075 m/s travel, 1x initial setup, and
 0.00125 m tip stand-off. A sphere entry-only transition may start below the
 raised travel height, but must already meet the drawing stand-off and pass
 the same sampled surface/tool clearance checks.
@@ -95,7 +95,7 @@ Continuous extrusion is split at 15 seconds (`pen.recycle_interval_s`), includin
 the press lead time. The compiler stops at a point on the same stroke, releases
 the pen, and holds the exact pose for 2 seconds (`pen.recycle_pause_s`) before
 pressing again. The recycle press lead then elapses before motion continues.
-The current press lead is **0.5 seconds** after lowering at a stroke start;
+The current press lead is **0.8 seconds** after lowering at a stroke start;
 `pen.recycle_press_delay_s: 0.5` preserves the **0.5-second** lead after a recycle.
 Continuous strokes use a short acceleration phase, constant
 cruise speed, and braking at the next deliberate stop instead of a quintic
