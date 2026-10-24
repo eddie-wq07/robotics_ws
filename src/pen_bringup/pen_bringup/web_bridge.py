@@ -9,7 +9,7 @@ import secrets
 import signal
 import threading
 import time
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote, urlparse, parse_qs
 from urllib.request import urlopen
 from urllib.error import URLError, HTTPError
 
@@ -17,7 +17,7 @@ from .service import Workflow, WorkflowError
 
 
 class RosBridge:
-    def __init__(self):
+    def __init__(self, node_name='pen_web_bridge'):
         import rclpy
         from rclpy.action import ActionClient
         from rclpy.node import Node
@@ -28,7 +28,7 @@ class RosBridge:
         from diagnostic_msgs.msg import DiagnosticArray
         from geometry_msgs.msg import PoseStamped
         from sensor_msgs.msg import JointState
-        self.node = Node('pen_web_bridge')
+        self.node = Node(node_name)
         self.action_type = ExecuteDrawing
         self.empty_type = Empty
         self.stop_type = Trigger
@@ -305,6 +305,9 @@ def make_handler(flow, web_root, model, camera_url='http://127.0.0.1:8082'):
                 if path == '/api/state':
                     return self.send(flow.state(key))
                 if path == '/api/model':
+                    surface = parse_qs(urlparse(self.path).query).get('surface', [None])[0]
+                    if surface is not None and flow.model_for_surface:
+                        return self.send(flow.model_for_surface(surface))
                     return self.send(model())
                 if path.startswith('/api/input/'):
                     return self.file(flow.input_path(path[len('/api/input/'):]))
@@ -395,6 +398,7 @@ def main():
     parser.add_argument('--port', type=int, default=8080)
     parser.add_argument('--mode', choices=('preview', 'fake', 'real'), default='preview')
     parser.add_argument('--profile')
+    parser.add_argument('--prepared-job', help='Reuse this checked job when its inputs and starting pose match')
     parser.add_argument('--no-ros', action='store_true')
     parser.add_argument('--camera-url', default='http://127.0.0.1:8082')
     args, ros_args = parser.parse_known_args()
@@ -403,8 +407,8 @@ def main():
         import rclpy
         from rclpy.signals import SignalHandlerOptions
         rclpy.init(args=ros_args, signal_handler_options=SignalHandlerOptions.NO)
-        bridge = RosBridge()
-    flow = Workflow(args.root, args.mode, args.profile, bridge)
+        bridge = RosBridge(f'pen_web_bridge_{args.port}')
+    flow = Workflow(args.root, args.mode, args.profile, bridge, prepared_job=args.prepared_job)
     if bridge:
         bridge.workflow = flow
     try:
@@ -415,6 +419,16 @@ def main():
     from .model import Model
     model = Model(flow.root, flow.profile, flow.mode)
     flow.model_provider = model.get
+    if args.mode == 'preview' and flow.profile and flow.profile.name == 'tylenol.yaml':
+        config = flow.root / 'src/pen_description/config'
+        flow.surface_profiles = {kind: config / name for kind, name in
+                                 [('plane', 'flat.yaml'), ('sphere', 'sphere.yaml'), ('cylinder', 'tylenol.yaml')]}
+        models = {kind: Model(flow.root, path, 'preview') for kind, path in flow.surface_profiles.items()}
+        def model_for_surface(kind):
+            if kind not in models:
+                raise WorkflowError('Unknown workpiece')
+            return models[kind].get()
+        flow.model_for_surface = model_for_surface
     server = ThreadingHTTPServer((args.host, args.port), make_handler(flow, web, model.get, args.camera_url))
     # ROS launch/background shells may pass an ignored SIGINT disposition.
     # Own shutdown in the HTTP thread; ROS spinning uses the same cleanup path.

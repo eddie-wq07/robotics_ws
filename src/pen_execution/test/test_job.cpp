@@ -110,8 +110,17 @@ TEST(Job, HashAndRootProtectReviewedArtifact) {
   const auto file=base/"allowed"/"job.json";
   const auto bytes=YAML::Dump(valid_job());
   { std::ofstream output(file); output << bytes; }
-  EXPECT_NO_THROW(pen_execution::load_job(file,base/"allowed",pen_execution::sha256(bytes)));
-  EXPECT_THROW(pen_execution::load_job(file,base/"allowed",std::string(64,'0')),std::runtime_error);
+  std::vector<std::string> stages;
+  auto progress=[&stages](const std::string& stage,double fraction) {
+    if (stages.empty() || stages.back()!=stage) stages.push_back(stage);
+    EXPECT_TRUE(fraction == -1 || (fraction>=0 && fraction<=1));
+  };
+  EXPECT_NO_THROW(pen_execution::load_job(file,base/"allowed",pen_execution::sha256(bytes),progress));
+  EXPECT_EQ(stages,(std::vector<std::string>{"READING","HASHING","PARSING","SAMPLES","TIMING"}));
+  stages.clear();
+  EXPECT_THROW(pen_execution::load_job(file,base/"allowed",std::string(64,'0'),progress),std::runtime_error);
+  // Progress reporting does not allow parsing an unverified artifact.
+  EXPECT_EQ(stages,(std::vector<std::string>{"READING","HASHING"}));
   std::filesystem::copy_file(file,base/"outside.json");
   EXPECT_THROW(pen_execution::load_job(base/"outside.json",base/"allowed",pen_execution::sha256(bytes)),std::runtime_error);
   std::filesystem::remove_all(base);

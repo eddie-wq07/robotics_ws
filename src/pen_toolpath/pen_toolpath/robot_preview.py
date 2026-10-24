@@ -154,7 +154,9 @@ class Arm:
         return solved
 
 
-def build_preview(job, context):
+def build_preview(job, context, progress=None):
+    if progress:
+        progress('approach')
     if job['profile'].get('robot_kinematics'):
         context={**context,'ik_position_tolerance_m':1e-7,'ik_angle_tolerance_rad':1e-6}
     if context.get('joint_execution'):
@@ -277,10 +279,17 @@ def build_preview(job, context):
         above_start = first.copy(); above_start[:3, 3] += normal*(height-float(first[:3, 3] @ normal))
         move(raised, 'APPROACH'); move(above_start, 'APPROACH'); move(first, 'APPROACH')
     previous_time = 0.
-    for sample, pose in zip(job['samples'], target_poses):
+    total = len(job['samples'])
+    if progress:
+        progress('trajectory', 0, total)
+    for index, (sample, pose) in enumerate(zip(job['samples'], target_poses)):
         dt = sample['time_s']-previous_time
         emit(pose, max(dt, .000001), sample['phase'], sample['time_s'], sample['extrude'])
         previous_time = sample['time_s']
+        if progress and (index % 128 == 0 or index+1 == total):
+            progress('trajectory', index+1, total)
+    if progress:
+        progress('return')
     if routes.get('park'):
         joint_route(routes['park'], 'RETURN',travel_scale)
     elif not routes.get('cartesian_park_pose'):

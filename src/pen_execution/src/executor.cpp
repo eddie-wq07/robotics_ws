@@ -264,6 +264,14 @@ class Executor : public rclcpp::Node {
       diagnostic_msgs::msg::KeyValue value; value.key=pair.first; value.value=pair.second;
       state.values.push_back(value);
     }
+    if (phase_ == "VALIDATING") {
+      for (const auto& pair : std::map<std::string,std::string>{
+          {"requested_job_sha256",requested_job_digest_}, {"load_stage",load_stage_},
+          {"load_progress",std::to_string(load_progress_)}}) {
+        diagnostic_msgs::msg::KeyValue value; value.key=pair.first; value.value=pair.second;
+        state.values.push_back(value);
+      }
+    }
     diagnostic_msgs::msg::KeyValue warmup_id;
     warmup_id.key="warmup_id";warmup_id.value=std::to_string(warmup_id_.load());
     state.values.push_back(warmup_id);
@@ -753,11 +761,17 @@ class Executor : public rclcpp::Node {
     {
       std::lock_guard<std::mutex> lock(mutex_);
       error_.clear(); progress_=0; sample_index_=0; job_digest_.clear();
+      requested_job_digest_=goal->get_goal()->expected_sha256;
+      load_stage_="READING";load_progress_=-1;
       tracking_failure_=YAML::Node();
     }
     try {
       set_phase("VALIDATING");
-      const auto job=load_job(goal->get_goal()->job_path,jobs_root_,goal->get_goal()->expected_sha256);
+      const auto job=load_job(goal->get_goal()->job_path,jobs_root_,goal->get_goal()->expected_sha256,
+        [this](const std::string& stage, double fraction) {
+          std::lock_guard<std::mutex> lock(mutex_);
+          load_stage_=stage;load_progress_=fraction;
+        });
       StopOnUnwind stop_before_job_cleanup([this] {
         set_phase("STOPPING");
         stop_after_error();
@@ -851,7 +865,8 @@ class Executor : public rclcpp::Node {
           if(distance(measured(),job.samples.back().pose)>start_tolerance_ ||
              angular_distance(measured(),job.samples.back().pose)>0.03)
             throw std::runtime_error("Robot is outside the reviewed Cartesian park pose");
-        } else {
+        }
+        if(routes["park"] || !routes["cartesian_park_pose"]) {
           const auto settings=job.source["motion_settings"];
           const double travel_scale=settings && settings["non_extruding_speed_scale"] ?
             settings["non_extruding_speed_scale"].as<double>() : 1.;
@@ -900,6 +915,8 @@ class Executor : public rclcpp::Node {
   uint32_t sample_index_=0;
   double progress_=0;
   std::string phase_="IDLE",error_,job_digest_;
+  std::string requested_job_digest_,load_stage_;
+  double load_progress_=-1;
   YAML::Node tracking_failure_;
   sensor_msgs::msg::JointState joints_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_pub_,view_pub_;

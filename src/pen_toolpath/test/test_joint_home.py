@@ -77,3 +77,12 @@ def test_home_checks_sphere_side_not_only_horizontal_plane():
     source['profile']['T_world_surface']['xyz_m']=[.03,0,.35]
     with pytest.raises(ValueError,match='too close'):
         build_joint_home(source,state,model)
+
+
+def test_home_checks_cylinder_body_not_only_horizontal_plane():
+    source,state,model=inputs()
+    source['profile']['surface']={'type':'cylinder','radius_m':.06,'height_m':.08,
+                                  'lying':True,'frame_origin':'cylinder_center'}
+    source['profile']['T_world_surface']['xyz_m']=[0,0,.3]
+    with pytest.raises(ValueError,match='too close'):
+        build_joint_home(source,state,model)

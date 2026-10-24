@@ -48,7 +48,11 @@ def test_preview_approaches_before_drawing_and_returns(context):
     drawing = {'kind':'pen_drawing', 'schema_version':1, 'units':'m',
                'strokes':[{'id':'line','points_m':[[-.004,0],[.004,0]]}]}
     job, _, _ = compile_drawing(drawing, surface='plane', profile=profile)
-    preview = build_preview(job, context)
+    updates = []
+    preview = build_preview(job, context, progress=lambda *args: updates.append(args))
+    assert updates[0] == ('approach',)
+    assert ('trajectory', len(job['samples']), len(job['samples'])) in updates
+    assert updates[-1] == ('return',)
     frames = preview['frames']; arm = Arm(context)
     initial = np.array([context['initial_positions'][name] for name in arm.names])
     assert np.allclose(frames[0]['positions'], initial)

@@ -11,6 +11,8 @@ import subprocess
 import threading
 import time
 import yaml
+from .preview_cache import PreviewCache
+from .prepared_job import restore_prepared
 
 
 def digest(path):
@@ -33,7 +35,7 @@ class WorkflowError(ValueError):
 
 
 class Workflow:
-    def __init__(self, root, mode='preview', profile=None, bridge=None):
+    def __init__(self, root, mode='preview', profile=None, bridge=None, prepared_job=None):
         if mode not in ('preview', 'fake', 'real'):
             raise ValueError('Unknown execution mode')
         self.root = Path(root).resolve()
@@ -48,12 +50,16 @@ class Workflow:
             raise WorkflowError('Real mode requires an explicit measured calibration profile')
         self.profile = Path(profile).resolve() if profile else None
         self.mode, self.bridge = mode, bridge
+        self.prepared_job = Path(prepared_job) if prepared_job else None
+        self.preview_cache = PreviewCache(self.root) if mode == 'preview' else None
         self.default_selection = {}
         if self.profile and self.profile.is_file():
             config = yaml.safe_load(self.profile.read_text())
             if isinstance(config, dict) and isinstance(config.get('selection'), dict):
                 self.default_selection = config['selection']
         self.model_provider = None
+        self.surface_profiles = {}
+        self.model_for_surface = None
         self.inputs.mkdir(parents=True, exist_ok=True)
         self.outputs.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
@@ -107,8 +113,18 @@ class Workflow:
     def prepare(self, key, request):
         image = self.input_path(request.get('image'))
         surface = request.get('surface', 'sphere')
-        if surface not in ('sphere', 'plane'):
-            raise WorkflowError('Choose sphere or plane')
+        if surface not in ('sphere', 'plane', 'cylinder'):
+            raise WorkflowError('Choose sphere, plane or Tylenol cylinder')
+        surface_spec = surface
+        selected_profile = self.surface_profiles.get(surface, self.profile)
+        if surface == 'cylinder':
+            profile_data = yaml.safe_load(selected_profile.read_text()) if selected_profile else {}
+            surface_spec = profile_data.get('surface', {})
+            if surface_spec.get('type') != 'cylinder':
+                raise WorkflowError('Start the Tylenol preview with config/tylenol.yaml')
+            if self.mode == 'real' and (profile_data.get('calibrated') is not True or
+                                        profile_data.get('fake_only', True)):
+                raise WorkflowError('Tylenol requires an approved real calibration profile')
         try:
             size = float(request.get('size_mm', 20))
         except (TypeError, ValueError) as exc:
@@ -120,7 +136,7 @@ class Workflow:
             raise WorkflowError('Fill must be true or false')
         preview_context = None
         if self.model_provider:
-            model = self.model_provider()
+            model = self.model_for_surface(surface) if self.model_for_surface else self.model_provider()
             if not model.get('available'):
                 raise WorkflowError('Robot description unavailable for motion preview')
             snapshot = model.get('visualization', {}).get('joint_snapshot')
@@ -152,15 +168,17 @@ class Workflow:
             self.preparing = True
             self.preparing_job = identifier
             self.preparation_cancel = threading.Event()
-            worker = {'image_path': str(image), 'size_mm': size, 'surface': surface,
+            worker = {'image_path': str(image), 'size_mm': size, 'surface': surface_spec,
                       'execution_mode': self.mode, 'fill': fill}
             worker['execution_backend'] = live.get('status', {}).get('execution_backend', 'cartesian') if self.model_provider else 'cartesian'
-            if self.profile:
-                worker['profile_path'] = str(self.profile)
+            if selected_profile:
+                worker['profile_path'] = str(selected_profile)
             if preview_context:
                 worker['robot_preview'] = preview_context
-            job['profile_sha256'] = digest(self.profile) if self.profile else None
+            job['profile_sha256'] = digest(selected_profile) if selected_profile else None
             job['input_sha256'] = input_digest(image)
+            if self.preview_cache:
+                job['cache_key'] = self.preview_cache.key(worker, job['input_sha256'], job['profile_sha256'])
             (folder / 'request.json').write_text(json.dumps(worker, indent=2))
             threading.Thread(target=self._compile, args=(job,), daemon=True).start()
             return self.public_job(job)
@@ -173,7 +191,14 @@ class Workflow:
             env = os.environ.copy()
             env.pop('PYTHONPATH', None)
             env.pop('PYTHONHOME', None)
-            if self.bridge is not None and hasattr(self.bridge, 'generate'):
+            request = json.loads((folder / 'request.json').read_text())
+            saved = bool(self.prepared_job and restore_prepared(
+                self.root, self.prepared_job, request, job['input_sha256'], job['profile_sha256'], folder))
+            cached = saved or bool(self.preview_cache and self.preview_cache.restore(job['cache_key'], folder))
+            job['cache_hit'] = cached
+            if cached:
+                job['message'] = 'Loading saved trajectory'
+            elif self.bridge is not None and hasattr(self.bridge, 'generate'):
                 self.bridge.generate(json.loads((folder / 'request.json').read_text()), folder,
                                      cancel_event=self.preparation_cancel)
             else:
@@ -201,6 +226,19 @@ class Workflow:
             parsed = json.loads(path.read_text())
             if not parsed.get('samples'):
                 raise WorkflowError('No executable path was generated')
+            request = json.loads((folder / 'request.json').read_text())
+            if (input_digest(self.input_path(job['image'])) != job['input_sha256'] or
+                    (request.get('profile_path') and digest(request['profile_path']) != job['profile_sha256'])):
+                job.update(state='stale', message='Inputs changed during preparation. Preview again.')
+                return
+            if self.preview_cache and not cached and not self.preparation_cancel.is_set():
+                current_key = self.preview_cache.key(request, job['input_sha256'], job['profile_sha256'])
+                if current_key == job['cache_key']:
+                    try:
+                        self.preview_cache.save(job['cache_key'], folder)
+                        job['cache_saved'] = True
+                    except OSError as error:
+                        job['cache_warning'] = f'Preview ready but could not save cache: {error}'
             with self.lock:
                 if self.preparation_cancel.is_set():
                     job.update(state='stopped', message='Preparation canceled')
@@ -209,7 +247,7 @@ class Workflow:
                     job.update(state='stale', message='Inputs changed. Preview again.')
                     return
                 token = secrets.token_urlsafe(24)
-                job.update(state='ready', message='Preview ready', progress=1.0,
+                job.update(state='ready', message='Loaded saved trajectory' if cached else 'Preview ready', progress=1.0,
                            sha256=digest(path), preview_token=token)
                 self.session(job['owner'])['reviewed'] = job['id']
         except Exception as exc:
@@ -230,6 +268,19 @@ class Workflow:
             public['preparation_stage'] = ('Checking robot trajectory' if 'toolpath.json' in public['preview_files']
                                             else 'Mapping pen strokes to surface' if 'drawing.json' in public['preview_files']
                                             else 'Extracting image and pen strokes')
+            if job.get('cache_hit'):
+                public['preparation_stage'] = 'Loading saved trajectory'
+            try:
+                progress = json.loads((folder / 'progress.json').read_text())
+                labels = {'image': 'Extracting image', 'surface': 'Mapping pen strokes to surface',
+                          'approach': 'Checking approach motion', 'trajectory': 'Checking robot trajectory',
+                          'return': 'Checking return motion', 'saving': 'Saving checked trajectory',
+                          'complete': 'Loading checked preview'}
+                if progress['stage'] in labels:
+                    public['preparation_stage'] = labels[progress['stage']]
+                    public['preparation_progress'] = progress
+            except (OSError, ValueError, KeyError, TypeError):
+                pass
         return public
 
     def get_job(self, key, identifier):

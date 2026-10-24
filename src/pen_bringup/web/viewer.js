@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { simplifiedIndices } from './display_geometry.js';
 
 const matrix = values => new THREE.Matrix4().fromArray(values.flat()).transpose();
 export const LAYER_COLOURS = [0x4f86df, 0xed846f, 0x6856c0, 0x91b4ed, 0xc783c5];
@@ -21,7 +22,7 @@ export class Viewer {
   constructor(container, { studio = false } = {}) {
     this.container = container;
     this.studio = studio;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     const theme = getComputedStyle(document.documentElement);
     this.renderer.setClearColor(theme.getPropertyValue('--viewport-bg').trim());
@@ -34,6 +35,10 @@ export class Viewer {
     this.camera.up.set(0, 0, 1);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
+    this.dirty = true;
+    this.controls.addEventListener('change', () => this.requestRender(false));
+    const gl = this.renderer.getContext(), debug = gl.getExtension('WEBGL_debug_renderer_info');
+    this.container.dataset.renderer = debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
     this.scene.add(new THREE.HemisphereLight(0xffffff, studio ? 0x888888 : 0x889bb0, studio ? .65 : 2.4));
     const light = new THREE.DirectionalLight(0xffffff, studio ? 2.2 : 2.8);
     light.position.set(1.2, -1.5, 2.5);
@@ -47,6 +52,8 @@ export class Viewer {
       this.scene.environment = this.environmentMap.texture;
       environment.dispose(); generator.dispose();
       this.renderer.shadowMap.enabled = true;
+      this.renderer.shadowMap.autoUpdate = false;
+      this.renderer.shadowMap.needsUpdate = true;
       this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       light.castShadow = true;
       light.shadow.mapSize.set(2048, 2048);
@@ -73,9 +80,14 @@ export class Viewer {
     const draw = () => {
       requestAnimationFrame(draw);
       this.controls.update();
-      this.renderer.render(this.scene, this.camera);
+      if (this.dirty) { this.renderer.render(this.scene, this.camera); this.dirty = false; }
     };
     draw();
+  }
+
+  requestRender(shadows = true) {
+    this.dirty = true;
+    if (shadows) this.renderer.shadowMap.needsUpdate = true;
   }
 
   resize() {
@@ -84,10 +96,13 @@ export class Viewer {
     this.renderer.setSize(width, height);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    this.requestRender();
   }
 
   clear() {
     this.content.traverse(object => {
+      for (let parent = object; parent; parent = parent.parent)
+        if (parent.userData.sharedRenderResources) return;
       if (object.geometry) object.geometry.dispose();
       const materials = object.material ? [object.material].flat() : [];
       for (const material of materials) material.dispose();
@@ -95,11 +110,13 @@ export class Viewer {
     this.content.clear();
     this.arm = null;
     this.beads = null;
+    this.requestRender();
   }
 
   async glb(url, parent = this.content) {
     const gltf = await this.loader.loadAsync(url);
     parent.add(gltf.scene);
+    this.requestRender();
     return gltf.scene;
   }
 
@@ -167,7 +184,7 @@ export class Viewer {
     const segments = [];
     for (const stroke of toolpath.strokes) {
       const hex = layerColour(stroke.layer, toolpath.layers);
-      const points = stroke.points_m;
+      const points = simplifiedIndices(stroke.points_m).map(i => stroke.points_m[i]);
       for (let i = 1; i < points.length; i++) segments.push([points[i - 1], points[i], hex]);
     }
     const group = new THREE.Group();
@@ -182,6 +199,7 @@ export class Viewer {
       group.add(new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: 0x9aa39a, transparent: true, opacity: 0.6 })));
     }
     this.content.add(group);
+    this.requestRender();
     return group;
   }
 
@@ -273,6 +291,7 @@ export class Viewer {
       new THREE.MeshStandardMaterial({ color: 0xb2c2d3, roughness: 0.9, transparent: true, opacity: 0.6 }));
     block.position.set(origin[0], origin[1], env.plate_top_z_m - height / 2);
     this.content.add(block);
+    this.requestRender();
   }
 
   frame(object, { direction = [1, -1.4, 0.9], margin = 2.4 } = {}) {
@@ -306,6 +325,7 @@ export class Viewer {
     this.camera.position.copy(this.center).addScaledVector(view, distance);
     this.controls.target.copy(this.center);
     this.controls.update();
+    this.requestRender();
   }
 }
 

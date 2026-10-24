@@ -94,9 +94,10 @@ Pose blend_pose(const Pose& a, const Pose& b, double fraction) {
   return result;
 }
 
-Job parse_job(const std::string& bytes) {
+Job parse_job(const std::string& bytes, const JobProgress& progress) {
   require(bytes.size() <= kMaxJobBytes, "Job exceeds 128 MiB");
   Job job;
+  if (progress) progress("PARSING", -1);
   job.source = YAML::Load(bytes);
   const auto& doc = job.source;
   require(doc.IsMap(), "Job must be an object");
@@ -114,6 +115,7 @@ Job parse_job(const std::string& bytes) {
   require(samples.IsSequence() && samples.size() >= 2 && samples.size() <= kMaxJobSamples,
           "Job requires 2..500000 samples");
   const std::set<std::string> phases = {"HOLD", "LOWER", "DRAW", "RELEASE", "LIFT", "TRAVEL"};
+  if (progress) progress("SAMPLES", 0);
   for (const auto& row : samples) {
     Sample sample{};
     sample.time_s = row["time_s"].as<double>();
@@ -138,6 +140,8 @@ Job parse_job(const std::string& bytes) {
         require(!previous.extrude, "LIFT must be preceded by a pen-off sample");
     }
     job.samples.push_back(sample);
+    if (progress && (job.samples.size() % 1024 == 0 || job.samples.size() == samples.size()))
+      progress("SAMPLES", static_cast<double>(job.samples.size()) / samples.size());
   }
   require(!job.samples.back().extrude, "Job must finish with pen off");
   if (doc["purpose"])
@@ -161,6 +165,7 @@ Job parse_job(const std::string& bytes) {
           std::isfinite(recycle_cap) && recycle_cap>0 && recycle_cap<=3600,
           "Invalid pen timing settings");
   const auto events = doc["pen_events"];
+  if (progress) progress("TIMING", 0);
   require(events.IsSequence(), "Missing pen event schedule");
   std::vector<bool> event_at_sample(job.samples.size(),false);
   double last_event_time=-1;
@@ -211,13 +216,16 @@ Job parse_job(const std::string& bytes) {
       require(distance(sample.pose,released_pose)<1e-5 && angular_distance(sample.pose,released_pose)<0.001,
               "Motion begins before pen release delay completes");
     }
+    if (progress && ((i+1) % 1024 == 0 || i+1 == job.samples.size()))
+      progress("TIMING", static_cast<double>(i+1) / job.samples.size());
   }
   job.digest = sha256(bytes);
   return job;
 }
 
 Job load_job(const std::filesystem::path& path, const std::filesystem::path& root,
-             const std::string& expected_sha256) {
+             const std::string& expected_sha256, const JobProgress& progress) {
+  if (progress) progress("READING", -1);
   const auto canonical = std::filesystem::canonical(path);
   const auto root_path = std::filesystem::canonical(root);
   const auto relative = canonical.lexically_relative(root_path);
@@ -228,9 +236,10 @@ Job load_job(const std::filesystem::path& path, const std::filesystem::path& roo
   std::ifstream stream(canonical, std::ios::binary);
   require(stream.good(), "Unable to read job");
   std::string bytes((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+  if (progress) progress("HASHING", -1);
   require(expected_sha256.size() == 64 && sha256(bytes) == expected_sha256,
           "Job changed since preview or digest is invalid");
-  auto job = parse_job(bytes);
+  auto job = parse_job(bytes, progress);
   job.path = canonical;
   return job;
 }

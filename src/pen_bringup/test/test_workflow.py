@@ -51,6 +51,37 @@ class WorkflowTest(unittest.TestCase):
         with self.assertRaisesRegex(WorkflowError,'true or false'):
             self.flow.prepare('owner',{'image':'apple.png','fill':'yes'})
 
+    def test_tylenol_requires_its_profile_and_real_approval(self):
+        with self.assertRaisesRegex(WorkflowError, 'tylenol.yaml'):
+            self.flow.prepare('owner', {'image': 'apple.png', 'surface': 'cylinder'})
+        self.flow.mode = 'real'
+        with self.assertRaisesRegex(WorkflowError, 'tylenol.yaml'):
+            self.flow.prepare('owner', {'image': 'apple.png', 'surface': 'cylinder'})
+        self.assertEqual(self.bridge.calls, [])
+        profile = self.root / 'tylenol.yaml'
+        profile.write_text(json.dumps({'surface': {'type': 'cylinder'}}))
+        self.flow.profile = profile
+        with self.assertRaisesRegex(WorkflowError, 'approved real calibration'):
+            self.flow.prepare('owner', {'image': 'apple.png', 'surface': 'cylinder'})
+        profile.write_text(json.dumps({'surface': {'type': 'cylinder'}, 'calibrated': True, 'fake_only': False}))
+        with patch('pen_bringup.service.threading.Thread'):
+            result = self.flow.prepare('owner', {'image': 'apple.png', 'surface': 'cylinder'})
+        self.assertEqual(result['state'], 'preparing')
+        self.assertEqual(self.bridge.calls, [])
+
+    def test_tylenol_preview_uses_selected_profile_and_full_cylinder_spec(self):
+        profile = self.root / 'tylenol.yaml'
+        spec = {'type': 'cylinder', 'radius_m': .0291, 'height_m': .03, 'lying': True}
+        profile.write_text(json.dumps({'surface': spec}))
+        self.flow.mode = 'preview'
+        self.flow.surface_profiles = {'cylinder': profile}
+        with patch('pen_bringup.service.threading.Thread'):
+            result = self.flow.prepare('owner', {'image': 'apple.png', 'surface': 'cylinder'})
+        request = json.loads((Path(self.flow.jobs[result['id']]['folder']) / 'request.json').read_text())
+        self.assertEqual(request['surface'], spec)
+        self.assertEqual(request['profile_path'], str(profile))
+        self.assertEqual(request['execution_mode'], 'preview')
+
     def test_warmup_is_separate_and_preserves_review_without_starting_drawing(self):
         warmup=self.flow.warmup('owner')
         self.assertEqual(warmup['action'],'warmup')

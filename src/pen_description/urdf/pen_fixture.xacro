@@ -4,6 +4,26 @@
     <xacro:pen_mesh name="pen_jig" file="jig.stl"/>
     <joint name="base_to_pen_jig" type="fixed"><parent link="${base}"/><child link="pen_jig"/><origin xyz="${jig_xyz}" rpy="${jig_rpy}"/></joint>
     <link name="pen_surface">
+      <xacro:if value="${surface_type == 'cylinder'}">
+        <visual name="tylenol_bottle">
+          <origin xyz="$(arg workpiece_bottle_xyz)" rpy="$(arg workpiece_bottle_rpy)"/>
+          <geometry><mesh filename="package://pen_description/assets/tylenol/tylenol.glb"/></geometry>
+        </visual>
+        <visual name="tylenol_holder">
+          <origin xyz="$(arg workpiece_holder_xyz)" rpy="$(arg workpiece_holder_rpy)"/>
+          <geometry><mesh filename="package://pen_description/assets/tylenol/holder.stl"/></geometry>
+          <material name="tylenol_holder_gray"><color rgba="0.22 0.25 0.28 1"/></material>
+        </visual>
+        <collision name="bottle_proxy">
+          <origin rpy="0 1.5707963267948966 0"/>
+          <geometry><cylinder radius="$(arg surface_radius)" length="$(arg surface_height)"/></geometry>
+        </collision>
+        <collision name="holder">
+          <origin xyz="$(arg workpiece_holder_xyz)" rpy="$(arg workpiece_holder_rpy)"/>
+          <geometry><mesh filename="package://pen_description/assets/tylenol/holder.stl"/></geometry>
+        </collision>
+      </xacro:if>
+      <xacro:unless value="${surface_type == 'cylinder'}">
       <visual>
         <origin xyz="0 0 ${-0.0025 if surface_type == 'plane' else 0}"/>
         <geometry><mesh filename="package://pen_description/meshes/${'flat' if surface_type == 'plane' else 'sphere'}.stl" scale="1 1 1"/></geometry>
@@ -12,6 +32,7 @@
         <origin xyz="0 0 ${-0.0025 if surface_type == 'plane' else 0}"/>
         <geometry><mesh filename="package://pen_description/meshes/${'flat' if surface_type == 'plane' else 'sphere'}.stl" scale="1 1 1"/></geometry>
       </collision>
+      </xacro:unless>
     </link>
     <joint name="jig_to_pen_surface" type="fixed"><parent link="pen_jig"/><child link="pen_surface"/><origin xyz="${surface_xyz}" rpy="${surface_rpy}"/></joint>
   </xacro:macro>

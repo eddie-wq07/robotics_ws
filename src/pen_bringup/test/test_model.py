@@ -85,6 +85,15 @@ def test_registration_rejects_changed_cad(model_root):
     assert 'does not match' in result['message']
 
 
+def test_embedded_pbr_asset_uses_asset_endpoint(model_root):
+    urdf = URDF.replace('package://pen_description/meshes/pen_holder.stl',
+                        'package://pen_description/assets/tylenol/tylenol.glb')
+    with patch('pen_bringup.model.subprocess.run', return_value=SimpleNamespace(returncode=0, stdout=urdf)):
+        model = Model(model_root).get()
+    assert model['available']
+    assert model['links'][1]['visuals'][0]['url'] == '/api/asset/tylenol/tylenol.glb'
+
+
 def test_real_model_uses_recorded_home_for_offline_preview(model_root):
     path = model_root / 'src/pen_description/config/fake.yaml'
     path.write_text(yaml.safe_dump({'robot_sn': 'Rizon4s-063112',

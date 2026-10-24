@@ -9,10 +9,13 @@ import yaml
 from pen_image_processing.api import extract_drawing
 from pen_image_processing.io import write_json
 from .compiler import compile_drawing
+from .progress import ProgressWriter
 
 
 def prepare(request, output):
     output = Path(output); output.mkdir(parents=True, exist_ok=True)
+    progress = ProgressWriter(output)
+    progress('image')
     image = request.get('image_path')
     drawing_path = request.get('drawing_path')
     if drawing_path:
@@ -59,6 +62,7 @@ def prepare(request, output):
         if not settings['air_offset_m'] and not profile.get('joint_execution', {}).get('drawing_enabled', False):
             raise ValueError('Joint drawing is disabled until the raised air test is reviewed')
     for timing_attempt in range(4):
+        progress('surface')
         job, preview, report = compile_drawing(drawing, surface=request.get('surface','sphere'),
             profile=profile,
             execution_mode=request.get('execution_mode','preview'),settings=settings)
@@ -69,7 +73,7 @@ def prepare(request, output):
             from .robot_preview import build_preview
             preview_context={**request['robot_preview'],
                              'joint_execution':request.get('execution_backend') == 'joint'}
-            motion = build_preview(job, preview_context)
+            motion = build_preview(job, preview_context, progress=progress)
             if request.get('execution_backend') == 'joint':
                 from .joint_trajectory import build_joint_trajectory, TimingLimitError
                 write_json(output/'unretimed_robot_preview.json', motion, compact=True)
@@ -94,10 +98,12 @@ def prepare(request, output):
     if profile_file:
         job['profile_path']=str(profile_file)
         job['profile_source_sha256']=hashlib.sha256(source_bytes).hexdigest()
+    progress('saving')
     write_json(output/'job.json',job,compact=True)
     write_json(output/'toolpath.json',preview,compact=True)
     write_json(output/'report.json',report)
     write_json(output/'request.json',request)
+    progress('complete', 1, 1)
     result={'success':True,'artifact_path':str((output/'job.json').resolve()),
             'sha256':hashlib.sha256((output/'job.json').read_bytes()).hexdigest(),**report}
     return result

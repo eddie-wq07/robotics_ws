@@ -1,0 +1,120 @@
+{
+  "source_file": "USB DISK/tylenol_holder2.stl",
+  "source_sha256": "fbe17ba6a10ea9134014f24f9fe13c405a586fade69e43883da4b67afdc3f6c7",
+  "runtime_sha256": "e19f8f93c6593e10d03d4506f93b257cc88f25d390e91f438c707957e2fc5e87",
+  "source_units": "mm",
+  "runtime_units": "m",
+  "bounds_m": [
+    [
+      -0.05,
+      -0.030992773056030275,
+      0.0
+    ],
+    [
+      0.05,
+      3.4290110813593517e-18,
+      0.02979999923706055
+    ]
+  ],
+  "watertight": true,
+  "faces": 2904,
+  "assembly": {
+    "id": "tylenol",
+    "label": "Tylenol + holder",
+    "bottle_mesh": "tylenol.glb",
+    "holder_mesh": "holder.stl",
+    "T_surface_bottle": {
+      "xyz_m": [
+        0.012,
+        -1.7913371699997332e-05,
+        0.03193427010000001
+      ],
+      "quaternion_xyzw": [
+        1.570092458683775e-16,
+        -0.7071067811865475,
+        0.7071067811865477,
+        -1.570092458683775e-16
+      ]
+    },
+    "T_surface_holder": {
+      "xyz_m": [
+        0.0219,
+        4.8627768478581855e-18,
+        0.0
+      ],
+      "quaternion_xyzw": [
+        0.5,
+        -0.4999999999999999,
+        -0.5,
+        0.5000000000000001
+      ]
+    },
+    "T_jig_bottle": {
+      "xyz_m": [
+        1.79133717e-05,
+        0.005,
+        0.1044342701
+      ],
+      "quaternion_xyzw": [
+        -0.5,
+        0.4999999999999999,
+        -0.5,
+        0.5000000000000001
+      ]
+    },
+    "T_jig_holder": {
+      "xyz_m": [
+        0.0,
+        0.0149,
+        0.0725
+      ],
+      "quaternion_xyzw": [
+        0.7071067811865475,
+        0.0,
+        0.0,
+        0.7071067811865477
+      ]
+    },
+    "camera_evidence": "/home/ubuntu/robotics_setup/validation/tylenol-assembly/camera.jpg",
+    "registration_status": "CAD hole alignment; bottle pose and clocking inferred from camera, unmeasured",
+    "source_body_axis_window_m": [
+      -0.011,
+      0.035
+    ],
+    "body_circle_fit_radius_m": 0.02809163641420662,
+    "max_body_radial_residual_m": 0.000916460681,
+    "planning_radius_m": 0.0296,
+    "holder_inner_radius_m": 0.028,
+    "holder_hole_centers_jig_m": [
+      [
+        -0.046,
+        -0.007,
+        0.0725
+      ],
+      [
+        -0.046,
+        0.007,
+        0.0725
+      ],
+      [
+        0.046,
+        -0.007,
+        0.0725
+      ],
+      [
+        0.046,
+        0.007,
+        0.0725
+      ]
+    ],
+    "holder_unit_conversion": 0.001,
+    "holder_hole_diameter_m": 0.0035,
+    "holder_mounting_hole_alignment_error_m": 3e-10,
+    "body_circle_fit_source_window_m": [
+      -0.01,
+      0.02
+    ],
+    "max_body_scan_radius_m": 0.029494366934953043,
+    "drawing_axial_center_source_m": 0.012
+  }
+}

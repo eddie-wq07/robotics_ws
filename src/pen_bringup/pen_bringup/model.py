@@ -65,7 +65,9 @@ class Model:
                         if not uri.startswith(('package://pen_description/', 'package://flexiv_description/',
                                                'package://realsense2_description/')):
                             continue
-                        data['url'] = '/api/mesh/' + uri.removeprefix('package://')
+                        data['url'] = ('/api/asset/' + uri.removeprefix('package://pen_description/assets/')
+                                       if uri.startswith('package://pen_description/assets/')
+                                       else '/api/mesh/' + uri.removeprefix('package://'))
                     visuals.append(data)
                 links.append({'name': link.get('name'), 'visuals': visuals})
             for joint in robot.findall('joint'):
@@ -84,7 +86,7 @@ class Model:
             mount = display.get('holder_mount') if synthetic else None
             sphere_mount = display.get('sphere_mount') if synthetic and profile_data.get('surface', {}).get('type') == 'sphere' else None
             flat_mount = display.get('flat_mount') if synthetic and profile_data.get('surface', {}).get('type') == 'plane' else None
-            joint_snapshot = display.get('joint_snapshot') if synthetic else None
+            joint_snapshot = display.get('joint_snapshot') if synthetic and not profile_data.get('workpiece') else None
             home = profile_data.get('home', {})
             if not joint_snapshot and home.get('joint_positions_rad'):
                 joint_snapshot = {

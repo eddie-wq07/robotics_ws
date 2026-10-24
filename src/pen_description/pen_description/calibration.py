@@ -87,13 +87,22 @@ def load_profile(path, *, mode='preview', robot_sn=None):
     if robot_sn is not None and profile.get('robot_sn') != robot_sn:
         raise ValueError('Calibration robot_sn does not match requested robot')
     surface = profile.get('surface', {})
-    if not isinstance(surface, dict) or surface.get('type') not in ('sphere', 'plane'):
-        raise ValueError('surface.type must be sphere or plane')
+    if not isinstance(surface, dict) or surface.get('type') not in ('sphere', 'plane', 'cylinder'):
+        raise ValueError('surface.type must be sphere, plane or cylinder')
     if surface['type'] == 'sphere':
         radius = surface.get('radius_m')
         if (isinstance(radius, bool) or not isinstance(radius, (int, float)) or
                 not math.isfinite(radius) or abs(radius - 0.04) > 1e-9):
             raise ValueError('This cell uses an 80 mm diameter sphere: radius_m must be finite and 0.040')
+    elif surface['type'] == 'cylinder':
+        for key in ('radius_m', 'height_m'):
+            value = surface.get(key)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+                raise ValueError(f'surface.{key} must be positive and finite')
+        if surface.get('lying') is not True:
+            raise ValueError('Cylinder must be horizontal')
+        for key in ('T_surface_holder', 'T_surface_bottle'):
+            transform(profile.get('workpiece', {}), key)
     elif mode == 'real' or 'size_m' in surface:
         size = _numbers(surface.get('size_m'), 3, 'surface.size_m')
         if any(abs(a-b) > 1e-8 for a, b in zip(size, [0.08, 0.10, 0.0025])):
@@ -145,6 +154,13 @@ def xacro_mappings(profile):
     result['T_jig_surface_xyz'] = ' '.join(map(str, xyz))
     result['T_jig_surface_rpy'] = ' '.join(map(str, quaternion_rpy(q)))
     result['surface_type'] = profile['surface']['type']
+    if profile['surface']['type'] == 'cylinder':
+        result['surface_radius'] = str(profile['surface']['radius_m'])
+        result['surface_height'] = str(profile['surface']['height_m'])
+        for name in ('holder', 'bottle'):
+            xyz, q = transform(profile['workpiece'], f'T_surface_{name}')
+            result[f'workpiece_{name}_xyz'] = ' '.join(map(str, xyz))
+            result[f'workpiece_{name}_rpy'] = ' '.join(map(str, quaternion_rpy(q)))
     result['profile_id'] = str(profile.get('profile_id', 'unnamed'))
     result['profile_calibrated'] = str(profile.get('calibrated') is True).lower()
     result['profile_fake_only'] = str(profile.get('fake_only') is True).lower()

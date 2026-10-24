@@ -10,12 +10,16 @@ const neutralColors = {pen_holder: 0x424b55, pen_body: 0xd3d6da,
   pen_jig: 0x535e69, pen_surface: 0xe8e5de};
 
 export function applyJointPositions(joints, positions) {
+  let changed = false;
   for (const {joint, group} of joints) {
     const angle = positions?.[joint.name];
-    if (joint.type === 'revolute' && Number.isFinite(angle)) {
+    if (joint.type === 'revolute' && Number.isFinite(angle) && group.userData.jointAngle !== angle) {
       group.quaternion.setFromAxisAngle(new THREE.Vector3(...joint.axis).normalize(), angle);
+      group.userData.jointAngle = angle;
+      changed = true;
     }
   }
+  return changed;
 }
 
 export async function loadVisual(visual, linkName, materialGroups = null) {

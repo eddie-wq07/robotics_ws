@@ -9,7 +9,7 @@ import numpy as np
 
 from .compiler import transform
 from .robot_preview import Arm
-from pen_surface_geometry.api import minimum_segment_radius
+from pen_surface_geometry.api import minimum_segment_radius, minimum_surface_segment_clearance, make_surface
 
 
 def build_joint_home(source, state, model, *, allow_departure=False):
@@ -33,6 +33,7 @@ def build_joint_home(source, state, model, *, allow_departure=False):
         raise ValueError('3x Home speed exceeds a robot joint velocity limit')
     if duration>120:raise ValueError('Home route exceeds the 120-second bound')
     surface=transform(profile['T_world_surface'],'surface')
+    cylinder=make_surface(profile['surface']) if profile['surface']['type']=='cylinder' else None
     normal=surface[:3,2];origin=surface[:3,3]
     measured=transform({'xyz_m':state['pose'][:3],'quaternion_xyzw':state['pose'][3:]},'current TCP')
     tip_tcp=np.linalg.inv(transform(profile['T_flange_pen_tip'],'tip'))@transform(profile['T_flange_rdk_tcp'],'TCP')
@@ -48,6 +49,9 @@ def build_joint_home(source, state, model, *, allow_departure=False):
         near=position+radius*axis;far=position+(length-radius)*axis
         if profile['surface']['type']=='sphere':
             gap=minimum_segment_radius(near,far,origin)-float(profile['surface']['radius_m'])-radius
+        elif cylinder is not None:
+            gap=minimum_surface_segment_clearance(cylinder, surface[:3,:3].T@(near-origin),
+                                                  surface[:3,:3].T@(far-origin))-radius
         else:
             gap=min((near-origin)@normal,(far-origin)@normal)-radius
         minimum=min(minimum,float(gap))

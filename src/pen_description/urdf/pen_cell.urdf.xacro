@@ -10,6 +10,12 @@
   <xacro:arg name="profile_fake_only" default="true"/>
   <xacro:arg name="profile_id" default="TBD"/>
   <xacro:arg name="surface_type" default="sphere"/>
+  <xacro:arg name="surface_radius" default="0.0291"/>
+  <xacro:arg name="surface_height" default="0.03"/>
+  <xacro:arg name="workpiece_holder_xyz" default="0 0 0"/>
+  <xacro:arg name="workpiece_holder_rpy" default="0 0 0"/>
+  <xacro:arg name="workpiece_bottle_xyz" default="0 0 0"/>
+  <xacro:arg name="workpiece_bottle_rpy" default="0 0 0"/>
   <xacro:arg name="camera_enabled" default="false"/>
   <xacro:arg name="camera_xyz" default="TBD"/><xacro:arg name="camera_rpy" default="TBD"/>
   <xacro:arg name="visual_servo_enabled" default="false"/>

@@ -1,5 +1,8 @@
 import { Viewer, THREE } from './viewer.js';
 import { loadVisual, registerDisplayModel, applyJointPositions } from './robot_visuals.js';
+import { cloneSurfaceVisual, displayDrawRows } from './display_geometry.js';
+import { preparationDisplay } from './preparation_progress.js';
+import { executionDisplay } from './execution_progress.js';
 
 const app = document.querySelector('#app');
 app.innerHTML = `<div class="assembly-page">
@@ -7,7 +10,7 @@ app.innerHTML = `<div class="assembly-page">
     <a class="brand" href="/">3D<span>Pen</span></a>
     <select id="marker" aria-label="Input image"><option>Loading…</option></select>
     <button id="upload">Upload</button><input id="file" type="file" accept="image/jpeg,image/png" hidden>
-    <select id="surface" aria-label="Surface"><option value="plane">Flat surface</option><option value="sphere">80 mm sphere</option></select>
+    <select id="surface" aria-label="Surface"><option value="plane">Flat surface</option><option value="sphere">80 mm sphere</option><option value="cylinder">Tylenol + holder</option></select>
     <label>Size <input id="size" type="number" value="20" min="1" max="100" step="0.5" style="width:52px"> mm</label>
     <label class="toggle"><input id="fill" type="checkbox"> Fill dark areas</label>
     <span id="print-status" class="compact-status" role="status">Loading…</span>
@@ -42,7 +45,7 @@ app.innerHTML = `<div class="assembly-page">
       <p class="visually-hidden" id="assembly-status" role="status">Loading assembly…</p>
     </section>
   </main>
-  <section id="operation-status" class="operation-status" hidden aria-label="Robot operation">
+  <section id="operation-status" class="operation-status" hidden aria-label="Preparation and robot operation progress">
     <div class="operation-heading"><strong id="operation-title"></strong><span id="operation-elapsed"></span></div>
     <div id="operation-detail" role="status" aria-live="polite"></div>
     <progress id="operation-progress" max="1" aria-label="Operation progress"></progress>
@@ -78,6 +81,7 @@ let drawRows = [], surfaceObject = null;
 let strokeDeposit = null, strokeMarker = null, localTips = [];
 let worldToDrawing = null;
 let modelHash = null;
+let registeredWorkpiece = null;
 let fillChoices={};
 try{fillChoices=JSON.parse(localStorage.getItem('pen-fill-selections')) || {};}catch{}
 function restoreFill(){ $('#fill').checked=fillChoices[$('#marker').value]===true; }
@@ -95,6 +99,7 @@ function panelLoading(panel, text, failed=false) {
   const box=$(`#${panel}-loading`);box.hidden=!text;
   box.querySelector('span').textContent=text || '';
   box.querySelector('progress').hidden=failed;
+  box.querySelector('progress').removeAttribute('value');
   box.setAttribute('role',failed?'alert':'status');
 }
 function showSelectedImage(version) {
@@ -110,17 +115,24 @@ function showSelectedImage(version) {
 }
 async function showPreparation(info, version) {
   if(version!==generation)return;
-  const stage=info.preparation_stage || 'Loading checked drawing…';
-  panelLoading('strokes',`${stage}…`);
+  const progress=preparationDisplay(info);
+  if(operation?.kind==='Prepare drawing'){
+    operation.detail=progress.text;operation.progress=progress.value;renderOperation();
+  }
+  panelLoading('strokes',progress.text);
+  if(progress.value!==null){
+    const bar=$('#strokes-loading progress');bar.max=1;bar.value=progress.value;
+    bar.setAttribute('aria-valuetext',progress.text);
+  }
   $('#strokes-note').textContent='Preview is being prepared; execution remains unavailable until checks finish.';
   if(info.preview_files?.includes('toolpath.json') && partialPreviewId!==info.id){
     const path=await api(`/api/job/${info.id}/toolpath.json`);
     if(version!==generation)return;
-    views.strokes.clear();views.strokes.content.add(surface(path.surface));
+    views.strokes.clear();views.strokes.content.add(strokeSurface(path.surface));
     const strokes=views.strokes.strokes(path);
-    views.strokes.frame(strokes,{margin:3.2,direction:[1,-1,2]});
+    views.strokes.frame(path.surface.type==='cylinder'?views.strokes.content:strokes,{margin:3.2,direction:[1,-1,2]});
     partialPreviewId=info.id;
-    $('#show-surface').onchange=()=>{views.strokes.content.children[0].visible=$('#show-surface').checked;};
+    $('#show-surface').onchange=()=>{views.strokes.content.children[0].visible=$('#show-surface').checked;views.strokes.requestRender();};
   }
 }
 function startOperation(kind, detail, jobId=null) {
@@ -153,22 +165,8 @@ function updateOperation(state) {
   if(['complete','stopped','error'].includes(job.state)){
     finishOperation(job.message,job.state!=='complete');return;
   }
-  const status=state.robot?.status;
-  const fresh=status?.busy==='true' && status.job_sha256===job.sha256 &&
-    Date.now()/1000-state.robot.received_at<1;
-  const phase=fresh?status.phase:job.message;
-  const labels={VALIDATING:'Validating drawing and loading trajectory…',PREFLIGHT:'Checking controller and robot state…',
-    JOINT_HOME:'Returning to recorded Home…',JOINT_RETREAT:'Retracting from surface…',
-    JOINT_APPROACH:'Moving to drawing start…',JOINT_HOME_TO_APPROACH:'Moving to approach route…',
-    SWITCHING_TO_CARTESIAN:'Activating Cartesian controller…',SWITCHING_TO_JOINT:'Activating joint controller…',
-    DRAW:'Drawing…',LIFT:'Lifting pen…',TRAVEL:'Moving between strokes…',RELEASE:'Pausing with extrusion off…',
-    JOINT_PARK:'Returning to park…',STOPPING:'Stopping; waiting for robot confirmation…'};
-  Object.assign(labels,{WARMUP_STARTING:'Checking pen warmup conditions…',
-    WARMUP_PRESS:'Pressing and releasing the button to start heating…',
-    WARMUP_HEATING:`Heating pen — ${Math.ceil(30*(1-Number(job.progress || 0)))} seconds remaining. Arm stays stationary.`});
-  operation.detail=labels[phase] || phase || 'Waiting for robot…';
-  const progress=Number(fresh?status.progress:job.progress);
-  operation.progress=Number.isFinite(progress)&&progress>0?Math.min(1,progress):null;
+  const display=executionDisplay(job,state.robot);
+  operation.detail=display.text;operation.progress=display.value;
   renderOperation();
 }
 setInterval(()=>{if(operation?.running)renderOperation();},250);
@@ -192,6 +190,7 @@ function invalidate() {
   partialPreviewId=null;showSelectedImage(generation);
   views.strokes.clear();strokeDeposit=null;strokeMarker=null;
   if(pathGroup)pathGroup.visible=false;
+  views.robot.requestRender();
   panelLoading('strokes','Waiting to prepare pen strokes…');
   $('#strokes-note').textContent='Preparing the selected image.';
   $('#play').textContent='Play';
@@ -206,9 +205,10 @@ function setTransform(object, value) {
   object.quaternion.setFromEuler(new THREE.Euler(...(value.rpy || [0,0,0]), 'ZYX'));
 }
 function material(color=0xb8c7d4, opacity=1) { return new THREE.MeshStandardMaterial({color,roughness:.65,transparent:opacity<1,opacity}); }
-async function loadModel() {
-  const model = await api('/api/model');
+async function loadModel(selectedSurface = null) {
+  const model = await api('/api/model' + (selectedSurface ? `?surface=${encodeURIComponent(selectedSurface)}` : ''));
   if (!model.available) { $('#assembly-status').textContent = 'Assembly will appear when the description is available.'; return; }
+  views.strokes.clear(); registeredWorkpiece = null;
   if(robotRoot){robotRoot.traverse(o=>o.geometry?.dispose());views.robot.content.remove(robotRoot);}
   robotJoints=[];robotSurfaces=[];modelHash=model.profile_source_sha256;
   modelSurfaceType=model.surface?.type;
@@ -235,6 +235,7 @@ async function loadModel() {
     robotJoints.push({joint,group:links.get(joint.child)});
   }
   registerDisplayModel(links, model);
+  registeredWorkpiece = links.get('pen_surface');
   robotFlange=links.get(`${model.robot_sn}_flange`);
   visualTipOffset=new THREE.Vector3(...model.flange_to_pen_tip.xyz_m);
   applyJointPositions(robotJoints,jointSnapshot?.joints);
@@ -244,7 +245,7 @@ async function loadModel() {
     if (!group.children.length) continue;
     const label = document.createElement('label'); label.className='component-row';
     const checkbox = document.createElement('input'); checkbox.type='checkbox'; checkbox.checked=true;
-    checkbox.onchange=()=>{group.visible=checkbox.checked;};
+    checkbox.onchange=()=>{group.visible=checkbox.checked;views.robot.requestRender();};
     const title=document.createElement('span'); title.textContent=name.replace(`${model.robot_sn}_`,'');
     label.append(checkbox,title); $('#inventory').append(label);
   }
@@ -257,6 +258,10 @@ function fitCell() { views.robot.resize(); views.robot.frame(views.robot.content
 function surface(spec) {
   let mesh;
   if (spec.type === 'sphere') { mesh=new THREE.Mesh(new THREE.SphereGeometry(spec.radius_m||.04,64,40),material(0xe9edf1,.7)); }
+  else if (spec.type === 'cylinder') {
+    mesh=new THREE.Mesh(new THREE.CylinderGeometry(spec.radius_m,spec.radius_m,spec.height_m,64),material(0xe9edf1,.7));
+    mesh.rotation.z=Math.PI/2;
+  }
   else { const size=spec.size_m || [.08,.10,.0025]; mesh=new THREE.Mesh(new THREE.BoxGeometry(...size),material(0xe9edf1,.7)); mesh.position.z=-size[2]/2; }
   return mesh;
 }
@@ -264,10 +269,16 @@ function worldGroup(job) {
   const group=new THREE.Group(); const t=job.profile.T_world_surface;
   group.position.set(...t.xyz_m); group.quaternion.set(...t.quaternion_xyzw); return group;
 }
+function strokeSurface(spec) {
+  if (spec.type === modelSurfaceType && registeredWorkpiece?.children.length) {
+    return cloneSurfaceVisual(registeredWorkpiece, $('#show-surface').checked);
+  }
+  const copy = surface(spec); copy.visible = $('#show-surface').checked; return copy;
+}
 async function showJob(jobInfo, version) {
   const base=`/api/job/${jobInfo.id}`;
   const [job,path,report,motion]=await Promise.all(['job.json','toolpath.json','report.json','robot_preview.json'].map(name=>api(`${base}/${name}`)));
-  if(job.profile_source_sha256 && job.profile_source_sha256!==modelHash)await loadModel();
+  if(job.profile_source_sha256 && job.profile_source_sha256!==modelHash)await loadModel(job.surface.type);
   if (version!==generation) return;
   if(motion.kind!=='pen_robot_preview' || motion.frames.length<2)throw new Error('Robot motion preview is unavailable');
   compiled=job; robotPreview=motion; current=jobInfo; previewToken=jobInfo.preview_token; at=0;
@@ -289,14 +300,14 @@ async function showJob(jobInfo, version) {
     $('#picture-note').textContent=`${jobInfo.size_mm} mm · setup ${setting.approach_speed_scale || 1}× · draw ${setting.draw_speed_m_s*1000} mm/s · travel ${setting.travel_speed_m_s*1000} mm/s · tip ${((setting.stand_off_m+(job.air_offset_m||0))*1000).toFixed(2)} mm above surface${setting.maximum_surface_normal_angle_deg ? ` · ≤${setting.maximum_surface_normal_angle_deg}° from surface normal` : ''}${job.air_run?' · AIR TEST · extrusion OFF':''}${job.pen.recycle_interval_s ? ` · recycle ${job.pen.recycle_interval_s}s` : ''}`;
   }
   $('#strokes-note').textContent=`${report.stroke_count} strokes · ${clock(job.duration_s)} · travel with extrusion off`;
-  views.strokes.clear(); views.strokes.content.add(surface(path.surface));
+  views.strokes.clear(); views.strokes.content.add(strokeSurface(path.surface));
   const strokes=views.strokes.strokes(path);
   // Filled artwork should show the actual hatch widths before playback, too.
   // Deposited material uses a darker colour as simulation or execution advances.
   Viewer.tint(strokes.children[0], {color:jobInfo.fill?0xffffff:0x91a4b8,
     opacity:jobInfo.fill?1:.2,vertexColors:false});
-  views.strokes.frame(strokes,{margin:3.2,direction:[1,-1,2]});
-  $('#show-surface').onchange=()=>{views.strokes.content.children[0].visible=$('#show-surface').checked;};
+  views.strokes.frame(path.surface.type==='cylinder'?views.strokes.content:strokes,{margin:3.2,direction:[1,-1,2]});
+  $('#show-surface').onchange=()=>{views.strokes.content.children[0].visible=$('#show-surface').checked;views.strokes.requestRender();};
   if(pathGroup) { pathGroup.traverse(o=>{o.geometry?.dispose();}); views.robot.content.remove(pathGroup); }
   pathGroup=new THREE.Group(); views.robot.content.add(pathGroup);
   const placement=worldGroup(job); surfaceObject=surface(job.surface); placement.add(surfaceObject); pathGroup.add(placement);
@@ -327,9 +338,7 @@ async function showJob(jobInfo, version) {
     new THREE.Matrix4().compose(new THREE.Vector3(...sample.pose.slice(0,3)),
       new THREE.Quaternion(...sample.pose.slice(3)),new THREE.Vector3(1,1,1)).multiply(tcpToTip)));
   localTips=worldTips.map(point=>point.clone().applyMatrix4(worldToSurface));
-  drawRows=[];
-  for(let i=1;i<job.samples.length;i++) if(job.samples[i].extrude && job.samples[i-1].extrude)
-    drawRows.push({a:job.samples[i-1],b:job.samples[i],worldA:worldTips[i-1],worldB:worldTips[i],localA:localTips[i-1],localB:localTips[i]});
+  drawRows=displayDrawRows(job.samples,worldTips,localTips);
   deposit=Viewer.tubes([],path.strand_width_mm/2000,drawRows.length); pathGroup.add(deposit);
   strokeDeposit=Viewer.tubes([],strandRadius,drawRows.length); views.strokes.content.add(strokeDeposit);
   strokeMarker=new THREE.Mesh(new THREE.SphereGeometry(strandRadius*1.8,20,12),
@@ -337,7 +346,7 @@ async function showJob(jobInfo, version) {
   views.strokes.content.add(strokeMarker);
   $('#detail-link').href=`${base}/robot_preview.json`; $('#seek').max=motion.duration_s;
   $('#play').disabled=$('#seek').disabled=false;
-  message(mode==='preview'?'Ready to play · preview-only mode':'Ready · Play or Execute');
+  message(mode==='preview'?`Ready to play · preview-only mode${jobInfo.cache_hit?' · saved trajectory':''}`:'Ready · Play or Execute');
   $('#assembly-status').textContent='Joint motion preview · approach, draw, retract and return · collision checking pending';
   draw(0); controls();
   panelLoading('strokes','');
@@ -378,14 +387,16 @@ function draw(seconds, live=null) {
   if(freshJoints)strokeMarker.position.copy(toolMarker.position).applyMatrix4(worldToDrawing);
   $('#strokes-note').textContent=`${Math.round(jobAt/compiled.duration_s*100)}% drawn · ${sample.extrude?'pen down':'pen up'} · travel with extrusion off`;
   $('#scene-title').textContent=live?(freshJoints?'Live robot':'Waiting for live joints'):(jointSnapshot?.source?'Rizon4s · recorded pose':'Rizon4s');
+  views.strokes.requestRender(); views.robot.requestRender();
 }
 $('#mount').onclick=()=>{if(toolMount)views.robot.frame(toolMount,{margin:1.25,direction:[1,-1,.8]});};
-$('#travel').onclick=()=>{const visible=$('#travel').getAttribute('aria-pressed')!=='true';$('#travel').setAttribute('aria-pressed',visible);if(travelPath)travelPath.visible=visible;};
+$('#travel').onclick=()=>{const visible=$('#travel').getAttribute('aria-pressed')!=='true';$('#travel').setAttribute('aria-pressed',visible);if(travelPath)travelPath.visible=visible;views.robot.requestRender();};
 async function prepareCurrent() {
   if(busy || active || warmupPending || executePending || homePending || !preparationWanted || !$('#marker').value)return;
   preparationWanted=false;
   busy=true; previewToken=null; robotPreview=null; compiled=null; current=null; playing=false;
   $('#play').textContent='Play';controls(); const version=generation; message('Preparing drawing…');
+  startOperation('Prepare drawing','Extracting image and generating trajectory…');
   try {
     await invalidation;
     if(version!==generation)return;
@@ -400,8 +411,12 @@ async function prepareCurrent() {
     if(info.state!=='ready')await showPreparation(info,version);
     if(info.state!=='ready')throw new Error(info.message);
     panelLoading('strokes','Loading drawing preview…');
+    operation.detail='Loading the checked trajectory and drawing preview…';operation.progress=null;renderOperation();
     await showJob(info,version);
+    if(version===generation && operation?.kind==='Prepare drawing')
+      finishOperation('Prepared and saved locally. Ready to Play or Execute.');
   } catch(error){if(version===generation){message(error.message);
+    if(operation?.kind==='Prepare drawing')finishOperation(`Preparation failed: ${error.message}`,true);
     panelLoading('strokes',`Preparation failed: ${error.message}`,true);
     $('#strokes-note').textContent=partialPreviewId?'Surface strokes only — robot trajectory was not approved.':'No checked pen-stroke preview is available.';}}
   finally{busy=false;controls();if(preparationWanted)prepareTimer=setTimeout(prepareCurrent,0);}
@@ -413,7 +428,7 @@ $('#execute').onclick=async()=>{
   if(!current||!previewToken){message('No ready drawing. Preparing the current selection…');await invalidate();return;}
   if(mode==='preview'){message('This server is preview-only. Real execution requires the connected real-mode server.');return;}
   executePending=true;playing=false;$('#play').textContent='Play';controls();
-  startOperation('Execute','Sending drawing; checking files and executor…',current.id);
+  startOperation('Execute','Verifying saved files and requesting execution…',current.id);
   try {const result=await api('/api/execute',{job_id:current.id,preview_token:previewToken});previewToken=null;active=result.state==='executing';
     operation.detail=result.message || 'Waiting for robot validation…';renderOperation();
     if(['complete','stopped','error'].includes(result.state))finishOperation(result.message,result.state!=='complete');}
@@ -464,7 +479,15 @@ $('#file').onchange=async()=>{
   catch(error){message(error.message);}
 };
 $('#marker').onchange=()=>{restoreFill();invalidate().catch(e=>message(e.message));};
-for(const id of ['#surface','#fill']) $(id).onchange=()=>invalidate().catch(e=>message(e.message));
+$('#fill').onchange=()=>invalidate().catch(e=>message(e.message));
+$('#surface').onchange=async()=>{
+  const selected=$('#surface').value;
+  try {
+    await invalidate(); clearTimeout(prepareTimer);
+    await loadModel(selected);
+    if(preparationWanted)prepareTimer=setTimeout(prepareCurrent,0);
+  } catch(error) {message(error.message);}
+};
 $('#size').oninput=()=>invalidate().catch(e=>message(e.message));
 $('#play').onclick=()=>{if(!robotPreview)return;playing=!playing;if(at>=robotPreview.duration_s)draw(0);$('#play').textContent=playing?'Pause':'Play';controls();};
 $('#seek').oninput=()=>{playing=false;$('#play').textContent='Play';draw(Number($('#seek').value));controls();};
@@ -495,7 +518,7 @@ async function refresh(){
     message(`${homing.message} · ${Math.round(homing.progress*100)}%`);
     const robot=state.robot;
     if(robot?.joints && Date.now()/1000-robot.joints_received_at<1){
-      applyJointPositions(robotJoints,robot.joints);robotRoot.updateMatrixWorld(true);
+      applyJointPositions(robotJoints,robot.joints);robotRoot.updateMatrixWorld(true);views.robot.requestRender();
       if(toolMarker)toolMarker.position.copy(robotFlange.localToWorld(visualTipOffset.clone()));
       if(strokeMarker && worldToDrawing)strokeMarker.position.copy(toolMarker.position).applyMatrix4(worldToDrawing);
       $('#scene-title').textContent='Live · joint home';
@@ -519,7 +542,7 @@ async function refresh(){
   }
   const liveJoints=state.robot?.joints;
   const displayedJoints=Object.keys(liveJoints || {}).length ? liveJoints : jointSnapshot?.joints;
-  if(!robotPreview)applyJointPositions(robotJoints,displayedJoints);
+  if(!robotPreview && applyJointPositions(robotJoints,displayedJoints))views.robot.requestRender();
   if(active){$('#mode').textContent=`${modeLabel} · live execution`;$('#mode').title='Execution feedback and live joint states';}
   if(needsFrame && Object.keys(displayedJoints || {}).length){fitCell();needsFrame=false;}
   controls();
@@ -536,7 +559,7 @@ Promise.all([refresh(),loadModel().catch(error=>{message(`Robot model unavailabl
         image:query.get('image'),surface:query.get('surface'),size_mm:Number(query.get('size_mm')),
       } : (JSON.parse(localStorage.getItem('pen-selection')) || state.default_selection);
       if(saved && [...$('#marker').options].some(option=>option.value===saved.image) &&
-          ['plane','sphere'].includes(saved.surface) && Number.isFinite(saved.size_mm) && saved.size_mm>=1 && saved.size_mm<=100){
+          ['plane','sphere','cylinder'].includes(saved.surface) && Number.isFinite(saved.size_mm) && saved.size_mm>=1 && saved.size_mm<=100){
         $('#marker').value=saved.image;$('#surface').value=saved.surface;$('#size').value=saved.size_mm;
         if(query.has('size_mm'))history.replaceState(null,'',location.pathname+location.hash);
       }

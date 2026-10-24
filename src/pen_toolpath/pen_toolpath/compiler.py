@@ -13,7 +13,7 @@ from scipy.spatial.transform import Rotation, Slerp
 from scipy.interpolate import CubicSpline
 import yaml
 
-from pen_surface_geometry.api import make_surface, surface_spec, minimum_segment_radius
+from pen_surface_geometry.api import make_surface, surface_spec, minimum_surface_segment_clearance
 from .clearance import MIN_PEN_CLEARANCE_M, MIN_SPHERE_PEN_CLEARANCE_M
 
 
@@ -121,6 +121,10 @@ def compile_drawing(drawing, *, surface='sphere', profile=None, execution_mode='
         radius = calibrated_surface.get('radius_m', 0.04)
         if not isinstance(radius, (float, int)) or not math.isfinite(radius) or abs(radius - spec['radius_m']) > 1e-9:
             raise ValueError('surface radius does not match the calibration profile')
+    elif spec['type'] == 'cylinder':
+        for key in ('radius_m', 'height_m'):
+            if abs(float(calibrated_surface.get(key, spec[key])) - spec[key]) > 1e-9:
+                raise ValueError(f'cylinder {key} does not match the profile')
     elif execution_mode == 'real' or 'size_m' in calibrated_surface:
         dimensions = np.asarray(calibrated_surface.get('size_m'), float)
         if dimensions.shape != (3,) or not np.isfinite(dimensions).all() or not np.allclose(dimensions, spec['size_m'], rtol=0, atol=1e-9):
@@ -213,6 +217,10 @@ def compile_drawing(drawing, *, surface='sphere', profile=None, execution_mode='
         if spec['type']=='sphere':
             rho=float(np.linalg.norm(tip-model.centre))
             cosine=((model.R+body_radius+margin)**2-rho*rho-body_radius**2)/(2*rho*body_radius)
+        elif spec['type'] == 'cylinder':
+            # The tangent supporting plane gives a conservative normal cone.
+            gap = float(model.height_and_normal(np.asarray([tip]))[0][0])
+            cosine = 1 - (gap - margin) / body_radius
         else:
             cosine=1-(tip[2]-model.origin[2]-margin)/body_radius
         allowed=min(math.radians(25.),math.acos(float(np.clip(cosine,-1.,1.))))
@@ -453,10 +461,10 @@ def compile_drawing(drawing, *, surface='sphere', profile=None, execution_mode='
         entry_only=profile['routes'].get('cartesian_entry_only',False)
         if type(entry_only) is not bool:
             raise ValueError('cartesian_entry_only must be boolean')
-        if spec['type']=='sphere':
+        if spec['type'] in ('sphere', 'cylinder'):
             entry_clearance=stand_off
-            if np.linalg.norm(tip_entry[:3,3]-model.centre)-model.R < entry_clearance:
-                raise ValueError('Saved sphere entry must be above the travel clearance')
+            if model.height_and_normal(tip_entry[:3, 3])[0][0] < entry_clearance:
+                raise ValueError('Saved curved-surface entry must be above the travel clearance')
         elif (tip_entry[2, 3] < stand_off+lift or
               float(-tip_entry[2, 2]) < math.cos(math.radians(2))):
             raise ValueError('Saved route entry must be tip-down above the travel clearance')
@@ -543,7 +551,7 @@ def compile_drawing(drawing, *, surface='sphere', profile=None, execution_mode='
     tips = np.asarray(local_tips)
     minimum = math.inf
     for a, b in zip(tips[:-1], tips[1:]):
-        gap = (minimum_segment_radius(a, b, model.centre) - model.R) if spec['type']=='sphere' else min(a[2],b[2])-model.origin[2]
+        gap = minimum_surface_segment_clearance(model, a, b)
         minimum = min(minimum, gap)
     if minimum < clearance - 1e-10:
         raise ValueError('sampled trajectory chord violates the surface clearance budget')
@@ -553,8 +561,7 @@ def compile_drawing(drawing, *, surface='sphere', profile=None, execution_mode='
     for tip, normal in zip(local_tips, local_normals):
         a = tip + body_radius * normal
         b = tip + (body_length - body_radius) * normal
-        body_gap = ((minimum_segment_radius(a, b, model.centre) - model.R - body_radius)
-                    if spec['type'] == 'sphere' else min(a[2], b[2]) - model.origin[2] - body_radius)
+        body_gap = minimum_surface_segment_clearance(model, a, b) - body_radius
         body_minimum = min(body_minimum, body_gap)
     if body_minimum < clearance - 1e-10:
         raise ValueError('tool envelope intersects the surface clearance margin')

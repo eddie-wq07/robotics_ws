@@ -17,8 +17,18 @@ def surface_spec(value='sphere'):
     elif kind == 'plane':
         defaults = {'type': 'plane', 'size_m': [0.08, 0.10, 0.0025], 'raise_m': -0.0025,
                     'position_m': [0, 0], 'marker': {'rotation_deg': 0}}
+    elif kind == 'cylinder':
+        radius = float(spec.get('radius_m', 0.029))
+        height = float(spec.get('height_m', 0.03))
+        if not all(math.isfinite(v) and v > 0 for v in (radius, height)):
+            raise ValueError('cylinder radius_m and height_m must be positive and finite')
+        if spec.get('lying', True) is not True:
+            raise ValueError('the pen pipeline supports horizontal cylinders only')
+        defaults = {'type': 'cylinder', 'radius_m': radius, 'height_m': height,
+                    'lying': True, 'axis_azimuth_deg': 0, 'raise_m': -radius,
+                    'position_m': [0, 0], 'marker': {'along_m': 0, 'azimuth_deg': 0}}
     else:
-        raise ValueError('surface must be plane or sphere')
+        raise ValueError('surface must be plane, sphere or cylinder')
     result = defaults | spec
     if kind == 'plane':
         size = np.asarray(result['size_m'], float)
@@ -29,6 +39,18 @@ def surface_spec(value='sphere'):
     if position.shape != (2,) or not np.isfinite(position).all() or not math.isfinite(float(result['raise_m'])):
         raise ValueError('invalid surface placement')
     return result
+
+
+def minimum_surface_segment_clearance(model, a, b):
+    """Exact chord clearance to the plane, sphere or infinite cylinder."""
+    if model.kind == 'plane':
+        return min(a[2], b[2]) - model.origin[2]
+    if model.kind == 'cylinder':
+        a, b = np.asarray(a) - model.centre, np.asarray(b) - model.centre
+        a = a - (a @ model.axis) * model.axis
+        b = b - (b @ model.axis) * model.axis
+        return minimum_segment_radius(a, b, np.zeros(3)) - model.R
+    return minimum_segment_radius(a, b, model.centre) - model.R
 
 
 def make_surface(value='sphere'):
