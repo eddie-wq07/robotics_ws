@@ -53,7 +53,7 @@ T_flange_holder:
   - 0.0
   - 0.7071067811865476
 T_holder_pen:
-  stand_off_m: 0.002
+  stand_off_m: 0.001
   xyz_m:
   - 0.0
   - 0.0
@@ -103,7 +103,7 @@ pen:
   end_extrusion_dwell_s: 0.5
   max_press_s: 600.0
   press_angle_deg: 140
-  stand_off_m: 0.002
+  stand_off_m: 0.0017
   recycle_interval_s: 15.0
   recycle_pause_s: 2.0
   recycle_press_delay_s: 0.5
@@ -115,7 +115,7 @@ tool_envelope:
   length_m: 0.3026348387252821
 routes:
   approach:
-    qualified: false
+    qualified: true
     start_positions:
     - -0.11538061499595642
     - 0.1688392013311386
@@ -2969,8 +2969,7 @@ routes:
       - -0.09869786567807631
       - 0.8397170991784912
       - -1.2685367541456556
-    invalidation_reason: Jig pose changed; this recorded route needs regeneration
-      or clearance revalidation.
+    clearance_evidence: /home/ubuntu/robotics_setup/validation/tylenol-clearance-20261025T055923Z/operator-confirmation.json
   cartesian_entry_pose:
     xyz_m:
     - 0.5186167754998512
@@ -2992,7 +2991,7 @@ routes:
     - 3.46890851256727e-19
     - -4.123606019080617e-19
   park:
-    qualified: false
+    qualified: true
     start_positions:
     - -0.03162487937580775
     - -0.31927282070270857
@@ -6119,18 +6118,19 @@ routes:
     minimum_bottle_tool_clearance_m: 0.012402785860345183
     minimum_jig_tool_clearance_m: 0.041958157012609146
     source: Checked transition to the previously executed air-pass return route.
-    invalidation_reason: Jig pose changed; this recorded route needs regeneration
-      or clearance revalidation.
+    clearance_evidence: /home/ubuntu/robotics_setup/validation/tylenol-clearance-20261025T055923Z/operator-confirmation.json
 notes: Uses operator-accepted CAD dimensions and position. Real 10 mm air pass completed
   with extrusion off; operator confirmed centered and visibly clear. Printing uses
   2.0 mm nominal tip clearance.
 qualification:
   rt: true
-  clearance: false
+  clearance: true
   pen: true
   tool: true
   previous_clearance_basis: Validated 10 mm air trajectory and joint routes; operator-confirmed
     arm/holder/cable clearance.
+  clearance_basis: Operator confirmed the current Tylenol approach, drawing and return
+    are clear after the new jig fit; 2 mm nozzle clearance. See registration.operator_clearance_evidence.
 camera:
   enabled: false
   model: D405
@@ -6227,7 +6227,7 @@ registration:
   jig_fit_report: /home/ubuntu/robotics_setup/validation/jig-recalibration-20261024/fit.json
   jig_fit_rms_mm: 0.7493789386990017
   jig_fit_max_error_mm: 1.139716946084038
-  motion_routes_valid: false
+  motion_routes_valid: true
   calibration_basis: Operator-approved nominal CAD placement on four-groove-registered
     jig; no contact probing performed.
   air_pass_evidence: /home/ubuntu/robotics_ws/assets/outputs/tylenol-air-20261024T192943Z/execution-result.json
@@ -6235,17 +6235,20 @@ registration:
   holder_seating_correction_axis: robot base +Z
   holder_seating_correction_source: User confirmed holder seating is the same 2.5
     mm correction, not an additional height offset.
-  motion_route_recheck: Pending after jig refit; regenerate and review paths using
-    the current jig and workpiece transforms.
+  motion_route_recheck: Operator confirmed current holder, arm and cable clearance
+    for approach, drawing and return after reviewing the current 2 mm sun preview.
   jig_recalibration_utc: '2026-10-25T04:51:13.187125+00:00'
+  operator_clearance_evidence: /home/ubuntu/robotics_setup/validation/tylenol-clearance-20261025T055923Z/operator-confirmation.json
+  clearance_confirmed_utc: '2026-10-25T05:59:23.915619+00:00'
 acceptance_scope: Operator-authorized Tylenol drawing using accepted CAD placement
   after successful centered real air pass.
 drawing:
   sample_rate_hz: 1000
+  max_surface_normal_angle_deg: 35.0
   draw_speed_scale: 1.0
   non_extruding_speed_scale: 1.0
-  speed_m_s: 0.006
-  travel_speed_m_s: 0.015
+  speed_m_s: 0.015
+  travel_speed_m_s: 0.045
   approach_speed_scale: 1.0
 home:
   controller: rizon_arm_controller
@@ -6372,4 +6375,3 @@ workpiece:
   - 0.02
   max_body_scan_radius_m: 0.029494366934953043
   drawing_axial_center_source_m: 0.012
-prepared_trajectory: assets/outputs/tylenol-real-20261024T193952Z

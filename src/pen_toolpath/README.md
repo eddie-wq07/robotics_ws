@@ -143,7 +143,11 @@ placement, or posture; reducing speed alone does not satisfy this geometric chec
 Drawing paths keep a steady heading and point the pen vertically downward
 wherever the calibrated tool envelope permits. A smooth, minimal tilt toward
 the surface normal is added where needed for capsule clearance and the
-**25-degree maximum deviation from the local surface normal**. There is no
+maximum deviation from the local surface normal configured by
+`drawing.max_surface_normal_angle_deg` (default **25 degrees**). Valid values
+are 0 through 89 degrees; the Tylenol profile sets **35 degrees**. This is a
+maximum, not a requested tilt; tool-envelope clearance can require a tighter
+angle. There is no
 fixed sphere printing-region angle cap. Surface mapping, pen/holder clearance,
 joint reachability and motion limits still apply. The selected tip stand-off is preserved, and TCP positions and
 motion timing are recomputed from the pen-tip transform and actual orientation.

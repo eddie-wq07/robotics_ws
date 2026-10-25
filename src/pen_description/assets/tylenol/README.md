@@ -82,8 +82,9 @@ The profile selects `sun.png`, 36 mm, and the **Tylenol + holder** dropdown.
 profiles when selected in this preview server.
 
 The planner wraps the image around a horizontal cylinder and checks sampled
-chords, the conservative tool capsule, velocity/acceleration and the 25-degree
-normal-angle limit. The robot preview checks IK and joint limits. It has no
+chords, the conservative tool capsule, velocity/acceleration and the configured
+normal-angle limit (`drawing.max_surface_normal_angle_deg`, currently 35 degrees).
+The robot preview checks IK and joint limits. It has no
 full-arm or holder collision qualification. The real profile uses the executed joint approach and a checked return to the recorded Home. It retains the shared hardware qualification and documents the operator-accepted CAD placement.
 Camera snapshot, screenshots and validation output are under
 `~/robotics_setup/validation/tylenol-assembly`.
@@ -95,27 +96,30 @@ fraction of drawing samples checked and an approximate time remaining based on
 the current check rate. Approach, return and artifact-saving stages are labelled
 separately; their bars are indeterminate when no reliable work count is available.
 
-Successful preview-mode results are saved under `assets/outputs/.preview_cache`.
+Successful preview and real results are saved under `assets/outputs/.preview_cache`.
 An unchanged request can reuse them after refreshing the UI or restarting the
 preview service. Reuse requires matching image/annotation hashes, profile,
-settings, robot kinematics and starting joint positions, planner source and
-numerical dependency versions. Cached artifacts are hash-verified before use;
+settings, robot kinematics, planner source and numerical dependency versions.
+Preview-only starting positions must match exactly; real starting positions
+must match within 0.005 rad per joint, as for explicitly saved jobs.
+Cached artifacts are hash-verified before use;
 each browser request still gets its own result and review token. The most recent
-eight results are retained, without removing original job folders. Real-mode
-preparation does not use this cache and no cached result initiates robot motion.
+eight results are retained, without removing original job folders. No cached
+result initiates robot motion or replaces the executor's live checks.
 
 ## Real UI
 
 Run `scripts/start-tylenol-real.sh` and open <http://127.0.0.1:8095/>. This connects
 to the existing ROS executor; it does not start the driver or command motion.
-The selected 36 mm sun uses 6 mm/s drawing, 15 mm/s travel and 1.5 mm nominal
+The selected 36 mm sun uses 15 mm/s drawing, 45 mm/s travel and 1.7 mm nominal
 tip clearance. Execute starts the extrusion-enabled drawing after final checks.
 
-The `prepared_trajectory` directory in `config/tylenol.yaml` contains the saved
-job, preview and hash manifest. Matching image, profile, kinematics, planning
-source and starting joints reload it with a fresh review token. Changed settings
-require preparation again. The real executor still verifies the reviewed file,
-current state, exclusive controller ownership and tracking limits before motion.
+An optional `prepared_trajectory` directory in a profile can supply an explicitly
+saved job, preview and hash manifest. Otherwise completed preparations use the
+automatic cache described above. Matching inputs reload with a fresh review
+token; changed settings require preparation again. The real executor still
+verifies the reviewed file, current state, exclusive controller ownership and
+tracking limits before motion.
 
 A real 10 mm raised, extrusion-off pass completed successfully on 2026-10-24.
 The operator confirmed centering and visible clearance. Evidence is in

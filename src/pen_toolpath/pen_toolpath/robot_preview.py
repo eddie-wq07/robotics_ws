@@ -31,6 +31,7 @@ class Arm:
             if len(chain) > len(by_child):
                 raise ValueError('Robot description contains a joint cycle')
         self.chain = []
+        self.rotation_terms = []
         self.names, lower, upper, velocity = [], [], [], []
         for joint in reversed(chain):
             origin = np.eye(4)
@@ -46,6 +47,10 @@ class Arm:
                 lower.append(limit['lower']); upper.append(limit['upper']); velocity.append(limit['velocity'])
                 axis = np.asarray(joint['axis'], float)
                 axis /= np.linalg.norm(axis)
+                x, y, z = axis
+                skew = np.array([[0., -z, y], [z, 0., -x], [-y, x, 0.]])
+                outer = np.outer(axis, axis)
+                self.rotation_terms.append((outer, np.eye(3)-outer, skew))
             self.chain.append((origin, axis, index))
         if len(self.names) != 7:
             raise ValueError('Robot preview requires seven arm joints')
@@ -107,15 +112,19 @@ class Arm:
         for origin, axis, index in self.chain:
             current = current @ origin
             if index is not None:
-                axes.append(current[:3, :3] @ axis)
-                origins.append(current[:3, 3].copy())
-                rotation = np.eye(4)
-                rotation[:3, :3] = Rotation.from_rotvec(axis * q[index]).as_matrix()
-                current = current @ rotation
+                if jacobian:
+                    axes.append(current[:3, :3] @ axis)
+                    origins.append(current[:3, 3].copy())
+                outer, perpendicular, skew = self.rotation_terms[index]
+                angle = float(q[index])
+                rotation = outer + math.cos(angle)*perpendicular + math.sin(angle)*skew
+                current[:3, :3] = current[:3, :3] @ rotation
         tip = current @ self.offset
         if not jacobian:
             return tip
-        jac = np.column_stack([np.r_[np.cross(a, tip[:3, 3]-p), a] for a, p in zip(axes, origins)])
+        axes = np.asarray(axes)
+        linear = np.cross(axes, tip[:3, 3]-np.asarray(origins))
+        jac = np.concatenate((linear, axes), axis=1).T
         return tip, jac
 
     @staticmethod
@@ -134,12 +143,15 @@ class Arm:
                     self.require_safe_posture(q)
                 return q
             jac = weights[:, None] * jac
-            inverse = jac.T @ np.linalg.solve(jac @ jac.T + 1e-8*np.eye(6), np.eye(6))
-            step = inverse @ (weights*error)
+            system = jac @ jac.T + 1e-8*np.eye(6)
+            residual = weights*error
             if self.posture_reference is not None:
                 # Keep the redundant motion near the initial arm posture while
                 # the task-space step continues to meet the requested TCP pose.
-                step += (np.eye(7)-inverse@jac) @ (.02*(self.posture_reference-q))
+                bias = .02*(self.posture_reference-q)
+                step = bias + jac.T @ np.linalg.solve(system, residual-jac@bias)
+            else:
+                step = jac.T @ np.linalg.solve(system, residual)
             step *= min(1, .15 / max(np.abs(step).max(), 1e-12))
             q = np.clip(q+step, self.lower+1e-7, self.upper-1e-7)
         def residual(value):
@@ -177,21 +189,31 @@ def build_preview(job, context, progress=None):
     travel_scale=job.get('motion_settings',{}).get('non_extruding_speed_scale',1.)
     first, last = target_poses[0], target_poses[-1]
     frames, elapsed, max_error, max_angle = [], 0., 0., 0.
+    last_solve = None
 
     def emit(desired, dt, phase, job_time=None, extrude=False):
-        nonlocal q, elapsed, max_error, max_angle
-        try:
-            solved = arm.solve(desired, q)
-        except ValueError as error:
-            raise ValueError(f'{phase} at drawing time {job_time}: {error}') from error
+        nonlocal q, elapsed, max_error, max_angle, last_solve
+        repeated = (last_solve is not None and
+                    np.array_equal(desired, last_solve[0]) and
+                    np.array_equal(q, last_solve[1]) and
+                    np.array_equal(arm.posture_reference, last_solve[2]))
+        if repeated:
+            solved, actual, error = last_solve[1], last_solve[3], last_solve[4]
+        else:
+            try:
+                solved = arm.solve(desired, q)
+            except ValueError as error:
+                raise ValueError(f'{phase} at drawing time {job_time}: {error}') from error
+            actual = arm.forward(solved)
+            error = arm.error(actual, desired)
+            reference = None if arm.posture_reference is None else arm.posture_reference.copy()
+            last_solve = (desired.copy(), solved.copy(), reference, actual, error)
         delta = np.abs(solved-q)
         if delta.max() > .25:
             raise ValueError('Robot preview rejected a discontinuous joint solution')
         # Slow the preview if a joint needs longer than the Cartesian schedule.
         elapsed += max(dt, float(np.max(delta / (.5*arm.velocity))))
         q = solved
-        actual = arm.forward(q)
-        error = arm.error(actual, desired)
         max_error = max(max_error, float(np.linalg.norm(error[:3])))
         max_angle = max(max_angle, float(np.linalg.norm(error[3:])))
         frames.append({'time_s': elapsed, 'positions': q.tolist(), 'phase': phase,

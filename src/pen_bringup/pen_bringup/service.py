@@ -53,7 +53,7 @@ class Workflow:
         self.profiles = ProfileCatalog(self.root, self.profile)
         self.mode, self.bridge = mode, bridge
         self.prepared_job = Path(prepared_job) if prepared_job else None
-        self.preview_cache = PreviewCache(self.root) if mode == 'preview' else None
+        self.preview_cache = PreviewCache(self.root) if mode in ('preview', 'real') else None
         self.default_selection = {}
         if self.profile and self.profile.is_file():
             config = yaml.safe_load(self.profile.read_text())
@@ -315,7 +315,8 @@ class Workflow:
             request = json.loads((folder / 'request.json').read_text())
             saved = bool(self.prepared_job and restore_prepared(
                 self.root, self.prepared_job, request, job['input_sha256'], job['profile_sha256'], folder))
-            cached = saved or bool(self.preview_cache and self.preview_cache.restore(job['cache_key'], folder))
+            cached = saved or bool(self.preview_cache and self.preview_cache.restore(
+                job['cache_key'], folder, request))
             job['cache_hit'] = cached
             if cached:
                 job['message'] = 'Loading saved trajectory'
@@ -348,7 +349,10 @@ class Workflow:
             parsed = json.loads(path.read_text())
             if not parsed.get('samples'):
                 raise WorkflowError('No executable path was generated')
-            request = json.loads((folder / 'request.json').read_text())
+            # Multi-stage ROS generation writes its intermediate drawing_path
+            # request into this folder. Keep the original browser request for
+            # cache identity; intermediate paths are unique to each job folder.
+            (folder / 'request.json').write_text(json.dumps(request, indent=2))
             if (input_digest(self.input_path(job['image'])) != job['input_sha256'] or
                     (request.get('profile_path') and digest(request['profile_path']) != job['profile_sha256'])):
                 job.update(state='stale', message='Inputs changed during preparation. Preview again.')
@@ -357,7 +361,7 @@ class Workflow:
                 current_key = self.preview_cache.key(request, job['input_sha256'], job['profile_sha256'])
                 if current_key == job['cache_key']:
                     try:
-                        self.preview_cache.save(job['cache_key'], folder)
+                        self.preview_cache.save(job['cache_key'], folder, request)
                         job['cache_saved'] = True
                     except OSError as error:
                         job['cache_warning'] = f'Preview ready but could not save cache: {error}'

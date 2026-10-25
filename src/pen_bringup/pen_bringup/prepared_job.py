@@ -1,11 +1,10 @@
 """Reload an explicitly supplied, fingerprinted prepared job without replanning."""
 import hashlib
 import json
-import math
 from pathlib import Path
 import shutil
 
-from .preview_cache import FILES, REQUIRED, checksum
+from .preview_cache import FILES, REQUIRED, checksum, start_positions_match
 
 
 def planner_revision(root):
@@ -32,10 +31,8 @@ def restore_prepared(root, source, request, input_hash, profile_hash, output):
     joints = context.get('initial_positions', {})
     if context.get('joints') != manifest['joints']:
         return False
-    for name, expected in manifest['start_positions'].items():
-        value = joints.get(name)
-        if not isinstance(value, (int, float)) or not math.isfinite(value) or abs(value - expected) > .005:
-            return False
+    if not start_positions_match(manifest['start_positions'], joints):
+        return False
     records = manifest['files']
     if not REQUIRED <= records.keys() or not records.keys() <= FILES:
         raise ValueError('Prepared trajectory manifest has invalid files')

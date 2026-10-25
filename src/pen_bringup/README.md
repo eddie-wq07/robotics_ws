@@ -27,6 +27,14 @@ profile or selection invalidate the previous execution review. New/renamed YAMLs
 and edits are discovered without restarting the server; edits to the selected
 profile reload its defaults and prepare a new preview when the UI is idle.
 
+Successful preview and real preparations are cached with verified artifact
+hashes. Real preparations may reuse a cached path when every starting joint is
+within 0.005 rad of its saved value, matching the explicit saved-job check.
+Returning to the same Home pose therefore tolerates small encoder differences.
+Image, annotation, profile, model, planner and dependency changes still force
+new preparation. Every cache load requires a fresh browser review token and the
+normal live checks at Execute; the cache never starts motion.
+
 Switching profiles never starts motion, warms the pen, changes the server's
 execution mode, or restarts the driver. Real execution still requires a real-mode
 server and an eligible measured profile. Driver-level settings such as stiffness

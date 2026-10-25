@@ -422,6 +422,25 @@ def test_twenty_five_degree_normal_limit_applies_even_with_small_holder():
     assert 24. < job['validation']['maximum_drawing_surface_normal_angle_deg']<=25.000001
 
 
+@pytest.mark.parametrize('limit', [15., 35.])
+def test_profile_controls_surface_normal_angle_limit(limit):
+    profile=synthetic_profile('sphere')
+    profile['pen']['stand_off_m']=.002
+    profile['drawing']={'max_surface_normal_angle_deg':limit}
+    job,_,_=compile_drawing(drawing([[-.026,0],[.026,0]]),surface='sphere',profile=profile)
+    assert job['motion_settings']['maximum_surface_normal_angle_deg']==limit
+    assert limit-1. < job['validation']['maximum_drawing_surface_normal_angle_deg']<=limit+1e-6
+    assert job['validation']['minimum_tool_surface_clearance_m']>=.00005
+
+
+@pytest.mark.parametrize('limit', [-1, 90, float('nan'), float('inf'), True, None, 'invalid'])
+def test_invalid_profile_surface_normal_angle_rejected(limit):
+    profile=synthetic_profile('sphere')
+    profile['drawing']={'max_surface_normal_angle_deg':limit}
+    with pytest.raises(ValueError,match='max_surface_normal_angle_deg'):
+        compile_drawing(drawing(),surface='sphere',profile=profile)
+
+
 def test_maximum_press_is_enforced():
     profile=synthetic_profile();profile['pen']['max_press_s']=.1
     with pytest.raises(ValueError,match='maximum continuous'):compile_drawing(drawing(),profile=profile)

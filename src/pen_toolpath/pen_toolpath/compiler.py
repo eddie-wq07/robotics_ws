@@ -171,6 +171,10 @@ def compile_drawing(drawing, *, surface='sphere', profile=None, execution_mode='
     acceleration = _number(settings, 'acceleration_m_s2', 0.1, 0.001, 0.5)
     angular_speed = _number(settings, 'angular_speed_rad_s', 0.25, 0.01, 0.5)
     angular_acceleration = _number(settings, 'angular_acceleration_rad_s2', 1, 0.01, 2)
+    drawing_settings = profile.get('drawing', {})
+    if isinstance(drawing_settings.get('max_surface_normal_angle_deg'), bool):
+        raise ValueError('max_surface_normal_angle_deg must be a finite angle in degrees')
+    max_normal_angle = _number(drawing_settings, 'max_surface_normal_angle_deg', 25., 0., 89.)
     rate = _number(settings, 'sample_rate_hz', profile.get('drawing', {}).get('sample_rate_hz',100), 50, 1000)
     if recycle_pause <= 1/rate:
         raise ValueError('Recycle pause must exceed one sample interval')
@@ -223,7 +227,7 @@ def compile_drawing(drawing, *, surface='sphere', profile=None, execution_mode='
             cosine = 1 - (gap - margin) / body_radius
         else:
             cosine=1-(tip[2]-model.origin[2]-margin)/body_radius
-        allowed=min(math.radians(25.),math.acos(float(np.clip(cosine,-1.,1.))))
+        allowed=min(math.radians(max_normal_angle),math.acos(float(np.clip(cosine,-1.,1.))))
         angle=math.acos(float(np.clip(local_up@outward,-1.,1.)))
         # Start the small clearance tilt gradually before the cone boundary.
         # This C2 smooth upper bound avoids a velocity kink at max(0, excess).
@@ -575,8 +579,8 @@ def compile_drawing(drawing, *, surface='sphere', profile=None, execution_mode='
     draw_tilt=np.degrees(np.arccos(np.clip(world_axes[extruding,2],-1.,1.)))
     surface_normals=model.height_and_normal(tips[extruding])[1] if extruding.any() else np.empty((0,3))
     deviation=np.degrees(np.arccos(np.clip(np.sum(np.asarray(local_normals)[extruding]*surface_normals,axis=1),-1.,1.)))
-    if len(deviation) and deviation.max()>25.+1e-6:
-        raise ValueError('Pen orientation exceeds 25 degrees from the local surface normal')
+    if len(deviation) and deviation.max()>max_normal_angle+1e-6:
+        raise ValueError(f'Pen orientation exceeds {max_normal_angle:g} degrees from the local surface normal')
     draw_segments = extruding[:-1] & extruding[1:]
     segment_speeds = np.linalg.norm(velocity, axis=1)
     draw_speed = float(segment_speeds[draw_segments].max()) if draw_segments.any() else 0.
@@ -604,7 +608,7 @@ def compile_drawing(drawing, *, surface='sphere', profile=None, execution_mode='
            'sample_rate_hz': rate, 'samples': samples, 'pen_events': events,
            'motion_settings': {'draw_speed_m_s': speed*draw_scale, 'travel_speed_m_s': travel_speed*travel_scale,
                                'pen_orientation': 'world_vertical_with_clearance_tilt',
-                               'maximum_surface_normal_angle_deg': 25.,
+                               'maximum_surface_normal_angle_deg': max_normal_angle,
                                'approach_speed_scale': approach_scale*travel_scale,
                                'non_extruding_speed_scale':travel_scale,
                                'stand_off_m': stand_off},

@@ -1,8 +1,24 @@
 # TODOS
 
-- Eddie: Develop simple, effective pitch. 
-    Review entire repo
+- Eddie: Develop simple, effective pitch.
+    i)
+    ii) Positioning with AI generated questions a judge might ask on first ask. //
+    iii) Write Devpost submission
+    iv) Begin collecting feedback -> iteration  //
+    v) Video submission
+    vi) Slideshow
 
+
+- Sam: Finalize the pipeline. 4 objects running highly consistently
+    - Review entire repo
+    - otpimize sun demo
+    - add moon demo
+
+
+- Things to get from office:
+    a) Ethernet cables
+    b) Mics
+    c) Yellow PLA
 
 # Flexiv 3D pen workspace
 

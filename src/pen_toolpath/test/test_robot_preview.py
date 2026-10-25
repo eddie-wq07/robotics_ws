@@ -159,3 +159,35 @@ def test_posture_biased_ik_still_reaches_target(context):
     assert np.linalg.norm(error[:3])<2e-5
     assert np.linalg.norm(error[3:])<2e-4
     arm.require_safe_posture(solved)
+
+
+def test_stationary_samples_reuse_solution_without_dropping_events(context, monkeypatch):
+    arm = Arm(context)
+    seed = np.array([context['initial_positions'][n] for n in arm.names])
+    pose = arm.forward(seed)
+    target = [*pose[:3, 3], *Rotation.from_matrix(pose[:3, :3]).as_quat()]
+    profile = synthetic_profile('plane')
+    profile['T_flange_pen_tip'] = context['flange_to_visual_tip']
+    profile['T_flange_rdk_tcp'] = context['flange_to_visual_tip']
+    positions = seed.tolist()
+    route = {'start_positions': positions, 'points': [{'time_s': .01, 'positions': positions}]}
+    samples = [{'time_s': i*.001, 'pose': target, 'phase': phase, 'extrude': extrude}
+               for i, (phase, extrude) in enumerate([
+                   ('HOLD', False), ('PRESS', True), ('PRESS', True), ('RELEASE', False)])]
+    job = {'profile': profile, 'samples': samples,
+           'joint_routes': {'approach': route, 'park': route}}
+    calls = []
+    original = Arm.solve
+
+    def solve(self, desired, q):
+        calls.append(desired.copy())
+        return original(self, desired, q)
+
+    monkeypatch.setattr(Arm, 'solve', solve)
+    result = build_preview(job, context)
+    frames = [f for f in result['frames'] if f['job_time_s'] is not None]
+    assert len(calls) == 1
+    assert [f['phase'] for f in frames] == [s['phase'] for s in samples]
+    assert [f['extrude'] for f in frames] == [s['extrude'] for s in samples]
+    assert [f['job_time_s'] for f in frames] == [s['time_s'] for s in samples]
+    assert len(frames) == len(samples)
