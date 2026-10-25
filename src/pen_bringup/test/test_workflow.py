@@ -96,6 +96,67 @@ class WorkflowTest(unittest.TestCase):
         self.assertEqual(request['profile_path'], str(profile))
         self.assertEqual(request['execution_mode'], 'preview')
 
+    def test_unqualified_photo_board_prepares_preview_and_blocks_execution(self):
+        profile = self.root/'src/pen_description/config/photo_board.yaml'
+        profile.parent.mkdir(parents=True)
+        spec = {'type':'plane','size_m':[.1,.1,.00535]}
+        profile.write_text(json.dumps({'surface':spec,'fake_only':True,'calibrated':False,
+            'selection':{'image':'apple.png','surface':'photo_board','size_mm':100,'fill':False}}))
+        self.flow.surface_profiles={'photo_board':profile}
+        self.flow.mode='real'
+        with patch('pen_bringup.service.threading.Thread'):
+            result=self.flow.prepare('owner',{'image':'apple.png','surface':'photo_board','size_mm':100})
+        request=json.loads((Path(self.flow.jobs[result['id']]['folder'])/'request.json').read_text())
+        self.assertEqual(request['surface'],spec)
+        self.assertEqual(request['profile_path'],str(profile))
+        self.assertEqual(request['execution_mode'],'preview')
+        with self.assertRaisesRegex(WorkflowError,'uncalibrated'):
+            self.flow.execute('owner',result['id'],'unused-token')
+        self.assertEqual(self.bridge.calls,[])
+
+    def surface_profiles(self):
+        self.flow.mode = 'real'
+        self.flow.profile = self.root/'tylenol.yaml'
+        self.flow.profile.write_text(json.dumps({'surface': {'type': 'cylinder'}}))
+        sphere = self.root/'sphere.yaml'
+        sphere.write_text(json.dumps({'surface': {'type': 'sphere', 'radius_m': .04}}))
+        self.flow.surface_profiles = {'sphere': sphere, 'cylinder': self.flow.profile}
+        return sphere
+
+    def test_real_sphere_preparation_selects_sphere_profile_from_cylinder_ui(self):
+        sphere = self.surface_profiles()
+        with patch('pen_bringup.service.threading.Thread'):
+            info = self.flow.prepare('owner', {'image': 'apple.png', 'surface': 'sphere', 'size_mm': 36})
+        job = self.flow.jobs[info['id']]
+        request = json.loads((Path(job['folder'])/'request.json').read_text())
+        self.assertEqual(request['profile_path'], str(sphere))
+        self.assertEqual(job['profile_sha256'], digest(sphere))
+
+    def test_execute_checks_selected_profile_instead_of_startup_profile(self):
+        sphere = self.surface_profiles()
+        self.job.update(surface='sphere', profile_sha256=digest(sphere))
+        self.flow.execute('owner', 'job', 'review-token')
+        self.assertEqual(len(self.bridge.calls), 1)
+
+    def test_execute_rejects_changes_to_selected_profile(self):
+        sphere = self.surface_profiles()
+        self.job.update(surface='sphere', profile_sha256=digest(sphere))
+        sphere.write_text('{}')
+        with self.assertRaisesRegex(WorkflowError, 'Calibration changed'):
+            self.flow.execute('owner', 'job', 'review-token')
+        self.assertEqual(self.bridge.calls, [])
+
+    def test_home_uses_selected_surface_profile(self):
+        import time
+        sphere = self.surface_profiles()
+        names = [f'test_joint{i}' for i in range(7)]
+        sphere.write_text(json.dumps({'home': {'controller':'rizon_arm_controller',
+                         'joint_names':names,'joint_positions_rad':[0]*7}}))
+        self.bridge.snapshot = lambda: {'joints_received_at':time.time(), 'pose_received_at':time.time(),
+                                       'joints':dict.fromkeys(names,0), 'pose':[0,0,.3,0,0,0,1]}
+        self.assertEqual(self.flow.home('owner', surface='sphere')['state'], 'complete')
+        self.assertEqual(self.bridge.calls, [])
+
     def test_warmup_is_separate_and_preserves_review_without_starting_drawing(self):
         warmup=self.flow.warmup('owner')
         self.assertEqual(warmup['action'],'warmup')

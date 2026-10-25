@@ -24,6 +24,16 @@
         </collision>
       </xacro:if>
       <xacro:unless value="${surface_type == 'cylinder'}">
+      <xacro:if value="${surface_type == 'plane' and '$(arg plane_visual_mesh)' != ''}">
+      <visual name="photo_board">
+        <geometry><mesh filename="$(arg plane_visual_mesh)"/></geometry>
+      </visual>
+      <collision name="photo_board">
+        <origin xyz="0 0 ${-float('$(arg plane_size_m)'.split()[2])/2}"/>
+        <geometry><box size="$(arg plane_size_m)"/></geometry>
+      </collision>
+      </xacro:if>
+      <xacro:unless value="${surface_type == 'plane' and '$(arg plane_visual_mesh)' != ''}">
       <visual>
         <origin xyz="0 0 ${-0.0025 if surface_type == 'plane' else 0}"/>
         <geometry><mesh filename="package://pen_description/meshes/${'flat' if surface_type == 'plane' else 'sphere'}.stl" scale="1 1 1"/></geometry>
@@ -32,6 +42,7 @@
         <origin xyz="0 0 ${-0.0025 if surface_type == 'plane' else 0}"/>
         <geometry><mesh filename="package://pen_description/meshes/${'flat' if surface_type == 'plane' else 'sphere'}.stl" scale="1 1 1"/></geometry>
       </collision>
+      </xacro:unless>
       </xacro:unless>
     </link>
     <joint name="jig_to_pen_surface" type="fixed"><parent link="pen_jig"/><child link="pen_surface"/><origin xyz="${surface_xyz}" rpy="${surface_rpy}"/></joint>

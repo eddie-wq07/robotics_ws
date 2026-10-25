@@ -45,8 +45,9 @@ def test_height_and_normal_inverts_the_map(name):
 def test_markers_too_big_for_the_surface_are_refused():
     from tests.conftest import ROOT
 
-    with pytest.raises(ValueError, match="ball"):
-        load_surface(ROOT / "tests/fixtures/surfaces/sphere.yaml").fit(0.06)
+    # Stereographic maps report their distortion; they have no angular cutoff.
+    notes = load_surface(ROOT / "tests/fixtures/surfaces/sphere.yaml").fit(0.06)
+    assert notes['max_length_error'] > 0 and notes['angle_deg'] > 0
     with pytest.raises(ValueError, match="can"):
         load_surface(ROOT / "tests/fixtures/surfaces/can.yaml").fit(0.04, (0.04, -0.02, 0.02))
     with pytest.raises(ValueError, match="end of the can"):
@@ -70,5 +71,6 @@ def test_globe_projection_keeps_distances_from_the_pole():
     # The map's edge is the equator.
     edge = globe.point(np.pi * globe.R / 2, 0.0)
     assert abs(edge[2] - globe.centre[2]) < 1e-9
-    with pytest.raises(ValueError, match="hemisphere"):
-        globe.fit(np.pi * globe.R * 0.6)
+    assert globe.fit(np.pi * globe.R * 0.6)['angle_deg'] == pytest.approx(108)
+    with pytest.raises(ValueError, match="antipode"):
+        globe.fit(np.pi * globe.R * 1.01)

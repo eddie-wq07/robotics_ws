@@ -458,12 +458,41 @@ def dome_layers(parts, figure, process):
     return np.where(figure, np.maximum(np.round(height / layer), settings["base_layers"]), 0)
 
 
+def photo_relief(picture, size_mm, process):
+    """Trace photographic edges while retaining the printed photo's full frame."""
+    rgba = load_picture(picture)
+    rgb, _, frame = crop_and_scale(rgba, [np.ones(rgba.shape[:2], bool)], size_mm,
+                                   crop=False, return_frame=True)
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    gray = cv2.bilateralFilter(gray, 9, 55, 7)
+    edges = cv2.Canny(gray, 45, 100, L2gradient=True) > 0
+    # Keep strokes away from the physical paper edge; do not trace its border.
+    pad = round(4.0 * PX_PER_MM)
+    inset = pad + round(1.0 * PX_PER_MM)
+    edges[:inset] = edges[-inset:] = False
+    edges[:, :inset] = edges[:, -inset:] = False
+    lines = skeleton_lines(edges, Grid(edges.shape), .15, 2.0, .12)
+    if not lines:
+        raise ValueError('Photo produced no traceable edges')
+    width = process['pen']['strand_width_mm']
+    polygons = [line.buffer(width / 2) for line in lines]
+    return {'mode': 'photo', 'style': 'ridges', 'size_mm': size_mm,
+            'strand_width_mm': width, 'layer_height_mm': process['pen']['layer_height_mm'],
+            'bounds_mm': list(unary_union(polygons).bounds), '_source_frame': frame,
+            'notes': {'frame_preserved': True, 'edge_detector': 'bilateral-filtered Canny',
+                      'paper_edge_margin_mm': 1.0},
+            'levels': [{'name': 'photo-detail', 'kind': 'ridge', 'layers': 1,
+                        'profile': [1], 'centerlines': lines, 'polygons': polygons}]}
+
+
 def make_relief(picture, size_mm, process, mode="auto", fill=True, style="ridges", crop=True):
     """The relief for ``picture`` at ``size_mm`` (longest side), as a dict.
 
     ``style`` is ``ridges`` (raised outline and detail ridges on a flat fill)
     or ``dome`` (every part swells like a cushion).
     """
+    if mode == 'photo':
+        return photo_relief(picture, size_mm, process)
     if style not in ("ridges", "dome"):
         raise ValueError(f"style must be ridges or dome, not {style!r}")
     strand = process["pen"]["strand_width_mm"]

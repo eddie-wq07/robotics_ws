@@ -13,6 +13,7 @@ import time
 import yaml
 from .preview_cache import PreviewCache
 from .prepared_job import restore_prepared
+from .profiles import ProfileCatalog
 
 
 def digest(path):
@@ -49,6 +50,7 @@ class Workflow:
         if mode == 'real' and profile is None:
             raise WorkflowError('Real mode requires an explicit measured calibration profile')
         self.profile = Path(profile).resolve() if profile else None
+        self.profiles = ProfileCatalog(self.root, self.profile)
         self.mode, self.bridge = mode, bridge
         self.prepared_job = Path(prepared_job) if prepared_job else None
         self.preview_cache = PreviewCache(self.root) if mode == 'preview' else None
@@ -60,6 +62,7 @@ class Workflow:
         self.model_provider = None
         self.surface_profiles = {}
         self.model_for_surface = None
+        self.model_for_profile = None
         self.inputs.mkdir(parents=True, exist_ok=True)
         self.outputs.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
@@ -70,6 +73,9 @@ class Workflow:
         self.prepare_process = None
         self.active_job = None
         self.last_browser = 0.0
+        self.clearance_check_path = None
+        self.clearance_check_digest = None
+        self.clearance_check_used = False
 
     def session(self, key):
         with self.lock:
@@ -110,33 +116,134 @@ class Workflow:
         self.invalidate(key)
         return identifier
 
+    def profile_for_surface(self, surface=None):
+        if surface is not None and surface not in ('sphere', 'plane', 'cylinder', 'photo_board'):
+            raise WorkflowError('Choose sphere, plane, Tylenol cylinder or photo board')
+        if surface in self.surface_profiles:
+            return self.surface_profiles[surface]
+        if self.profiles.records():
+            return self.profiles.resolve({'surface': surface})['path']
+        return self.profile
+
+    def resolve_selection(self, request, allow_preview=False):
+        try:
+            record = self.profiles.resolve(request)
+        except ValueError as exc:
+            raise WorkflowError(str(exc)) from exc
+        reason = self.profiles.unavailable(record, self.mode)
+        if reason and not allow_preview:
+            raise WorkflowError(reason)
+        return {**record['selection'], 'profile': record['id'], 'surface': record['surface'],
+                'size_mm': request.get('size_mm', record['selection'].get('size_mm', 20)),
+                'fill': request.get('fill', record['selection'].get('fill', False)),
+                'image': request.get('image', record['selection'].get('image')),
+                'profile_sha256': record['sha256']}
+
+    def planning_mode(self, profile):
+        if self.mode == 'real':
+            record = next((r for r in self.profiles.records().values()
+                           if r['path'] == Path(profile).resolve()), None) if profile else None
+            if record and self.profiles.execution_blockers(record, self.mode):
+                return 'preview'
+        return self.mode
+
+    def profile_for_job(self, job):
+        if job.get('profile'):
+            try:
+                return self.profiles.resolve({'profile': job['profile']})['path']
+            except ValueError as exc:
+                raise WorkflowError(str(exc)) from exc
+        return self.profile_for_surface(job.get('surface'))
+
+    def update_profile_flags(self, key, request):
+        with self.lock:
+            if self.active_job or self.preparing:
+                raise WorkflowError('Wait for the current operation or stop it before editing profile flags')
+            try:
+                record = self.profiles.update_flags(request.get('profile'), request.get('flags'),
+                                                   request.get('profile_sha256'))
+            except ValueError as exc:
+                raise WorkflowError(str(exc)) from exc
+            for session_key in list(self.sessions):
+                self.invalidate(session_key)
+            for job in self.jobs.values():
+                if job.get('profile') == record['id'] and job['state'] == 'ready':
+                    job.update(state='stale', message='Profile flags changed; prepare again')
+            return {'profile': record['id'], 'sha256': record['sha256'],
+                    'calibrated': record['data']['calibrated'], 'fake_only': record['data']['fake_only']}
+
+    def load_clearance_check(self, key):
+        with self.lock:
+            if self.mode != 'real' or not self.bridge or not self.clearance_check_path or self.clearance_check_used:
+                raise WorkflowError('No unused clearance check is armed')
+            if self.active_job or self.preparing:
+                raise WorkflowError('Wait for the current operation or stop it before loading the air check')
+            path = self.clearance_check_path
+            if digest(path) != self.clearance_check_digest:
+                raise WorkflowError('The approved clearance check changed')
+            data = json.loads(path.read_text())
+            if (data.get('purpose') != 'air_clearance_check' or not data.get('air_run') or
+                    any(s.get('extrude') is not False for s in data['samples'])):
+                raise WorkflowError('Invalid extrusion-off clearance check')
+            profile_path = Path(data['profile_path']).resolve()
+            record = next((r for r in self.profiles.records().values() if r['path'] == profile_path), None)
+            if not record or digest(profile_path) != data['profile_source_sha256']:
+                raise WorkflowError('Clearance check profile changed; prepare and review it again')
+            self.invalidate(key)
+            identifier = secrets.token_hex(8)
+            token = secrets.token_urlsafe(24)
+            job = {'id': identifier, 'owner': key, 'generation': self.session(key)['generation'],
+                   'state': 'ready', 'message': 'Air clearance check ready — extrusion OFF',
+                   'progress': 1., 'image': record['selection']['image'], 'surface': record['surface'],
+                   'size_mm': 5., 'fill': False, 'folder': str(path.parent), 'profile': record['id'],
+                   'profile_sha256': record['sha256'], 'input_sha256': input_digest(self.input_path(record['selection']['image'])),
+                   'sha256': self.clearance_check_digest, 'preview_token': token, 'clearance_check': True}
+            self.jobs[identifier] = job
+            self.session(key)['reviewed'] = identifier
+            return self.public_job(job)
+
     def prepare(self, key, request):
+        record = None
+        if request.get('profile') or self.profiles.records():
+            resolved = self.resolve_selection(request, allow_preview=True)
+            if request.get('profile') and request.get('surface', resolved['surface']) != resolved['surface']:
+                raise WorkflowError('Selected surface does not match the saved profile')
+            request = {**request, **resolved}
+            record = self.profiles.records()[resolved['profile']]
         image = self.input_path(request.get('image'))
         surface = request.get('surface', 'sphere')
-        if surface not in ('sphere', 'plane', 'cylinder'):
-            raise WorkflowError('Choose sphere, plane or Tylenol cylinder')
-        surface_spec = surface
-        selected_profile = self.surface_profiles.get(surface, self.profile)
+        if surface not in ('sphere', 'plane', 'cylinder', 'photo_board'):
+            raise WorkflowError('Choose sphere, plane, Tylenol cylinder or photo board')
+        surface_spec = record['data']['surface'] if record else surface
+        selected_profile = record['path'] if record else self.profile_for_surface(surface)
+        planning_mode = self.planning_mode(selected_profile)
+        if surface == 'photo_board':
+            profile_data = yaml.safe_load(selected_profile.read_text()) if selected_profile else {}
+            surface_spec = profile_data.get('surface', {})
+            if surface_spec.get('type') != 'plane':
+                raise WorkflowError('Photo board requires a planar profile')
         if surface == 'cylinder':
             profile_data = yaml.safe_load(selected_profile.read_text()) if selected_profile else {}
             surface_spec = profile_data.get('surface', {})
             if surface_spec.get('type') != 'cylinder':
                 raise WorkflowError('Start the Tylenol preview with config/tylenol.yaml')
-            if self.mode == 'real' and (profile_data.get('calibrated') is not True or
+            if planning_mode == 'real' and (profile_data.get('calibrated') is not True or
                                         profile_data.get('fake_only', True)):
                 raise WorkflowError('Tylenol requires an approved real calibration profile')
         try:
             size = float(request.get('size_mm', 20))
         except (TypeError, ValueError) as exc:
             raise WorkflowError('Drawing size must be a number') from exc
-        if not math.isfinite(size) or not 1 <= size <= 100:
-            raise WorkflowError('Drawing size must be between 1 and 100 mm')
+        maximum_size = 200 if surface == 'photo_board' or (record and record['data'].get('workpiece', {}).get('plane_mesh')) else 100
+        if not math.isfinite(size) or not 1 <= size <= maximum_size:
+            raise WorkflowError(f'Drawing size must be between 1 and {maximum_size} mm')
         fill=request.get('fill',False)
         if type(fill) is not bool:
             raise WorkflowError('Fill must be true or false')
         preview_context = None
         if self.model_provider:
-            model = self.model_for_surface(surface) if self.model_for_surface else self.model_provider()
+            model = (self.model_for_profile(selected_profile) if self.model_for_profile else
+                     self.model_for_surface(surface) if self.model_for_surface else self.model_provider())
             if not model.get('available'):
                 raise WorkflowError('Robot description unavailable for motion preview')
             snapshot = model.get('visualization', {}).get('joint_snapshot')
@@ -160,6 +267,7 @@ class Workflow:
                 if (pending['owner'] == key and pending['state'] == 'preparing' and
                         pending['image'] == image.name and pending['surface'] == surface and
                         pending['size_mm'] == size and pending['fill'] == fill and
+                        pending.get('profile') == request.get('profile') and
                         pending['input_sha256'] == input_digest(image) and
                         pending['profile_sha256'] == (digest(selected_profile) if selected_profile else None)):
                     pending['generation'] = self.session(key)['generation']
@@ -174,13 +282,15 @@ class Workflow:
             job = {'id': identifier, 'owner': key, 'generation': generation,
                    'state': 'preparing', 'message': 'Extracting image and generating surface path',
                    'progress': 0.0, 'image': image.name, 'surface': surface,
-                   'size_mm': size, 'fill':fill, 'folder': str(folder)}
+                   'size_mm': size, 'fill':fill, 'folder': str(folder), 'planning_mode': planning_mode}
+            if record:
+                job['profile'] = record['id']
             self.jobs[identifier] = job
             self.preparing = True
             self.preparing_job = identifier
             self.preparation_cancel = threading.Event()
             worker = {'image_path': str(image), 'size_mm': size, 'surface': surface_spec,
-                      'execution_mode': self.mode, 'fill': fill}
+                      'execution_mode': planning_mode, 'fill': fill}
             worker['execution_backend'] = live.get('status', {}).get('execution_backend', 'cartesian') if self.model_provider else 'cartesian'
             if selected_profile:
                 worker['profile_path'] = str(selected_profile)
@@ -209,7 +319,8 @@ class Workflow:
             job['cache_hit'] = cached
             if cached:
                 job['message'] = 'Loading saved trajectory'
-            elif self.bridge is not None and hasattr(self.bridge, 'generate'):
+            elif (request.get('execution_mode') != 'preview' and
+                  self.bridge is not None and hasattr(self.bridge, 'generate')):
                 self.bridge.generate(json.loads((folder / 'request.json').read_text()), folder,
                                      cancel_event=self.preparation_cancel)
             else:
@@ -306,6 +417,16 @@ class Workflow:
             job = self.get_job(key, identifier)
             if self.mode == 'preview' or self.bridge is None:
                 raise WorkflowError('Application is in preview mode. Launch fake or commissioned real mode to execute.')
+            if job.get('clearance_check'):
+                if self.clearance_check_used or job['sha256'] != self.clearance_check_digest:
+                    raise WorkflowError('This clearance-check permit is used or changed')
+            elif self.mode == 'real' and job.get('profile'):
+                record = self.profiles.resolve({'profile': job['profile']})
+                blockers = self.profiles.execution_blockers(record, self.mode)
+                if blockers:
+                    raise WorkflowError(' '.join(blockers))
+                if job.get('planning_mode') == 'preview':
+                    raise WorkflowError('This trajectory was prepared for preview; prepare it again for real execution.')
             if self.active_job:
                 raise WorkflowError('Another execution is already active')
             if (job['state'] != 'ready' or self.session(key)['reviewed'] != identifier
@@ -315,7 +436,8 @@ class Workflow:
             if digest(path) != job['sha256'] or input_digest(self.input_path(job['image'])) != job['input_sha256']:
                 self.invalidate(key)
                 raise WorkflowError('Input or job changed. Preview again.')
-            if self.profile and digest(self.profile) != job['profile_sha256']:
+            selected_profile = self.profile_for_job(job)
+            if selected_profile and digest(selected_profile) != job['profile_sha256']:
                 self.invalidate(key)
                 raise WorkflowError('Calibration changed. Preview again.')
             if not self.bridge.ready():
@@ -325,7 +447,9 @@ class Workflow:
             job.update(state='executing', message='Checking controller and hardware state', progress=0.0)
             self.session(key)['reviewed'] = None
             try:
-                self.bridge.execute(str(path), job['sha256'], bool(air_run),
+                if job.get('clearance_check'):
+                    self.clearance_check_used = True
+                self.bridge.execute(str(path), job['sha256'], bool(air_run or job.get('clearance_check')),
                                     lambda ok, msg: self.finish(identifier, ok, msg),
                                     lambda phase, progress, sample_index=None: self.progress(identifier, phase, progress, sample_index))
             except Exception as exc:
@@ -356,7 +480,7 @@ class Workflow:
                 raise WorkflowError(str(exc)) from exc
             return self.public_job(job)
 
-    def home(self, key, identifier=None):
+    def home(self, key, identifier=None, surface=None, profile=None):
         # Home uses the saved calibration, never a successfully compiled drawing.
         with self.lock:
             if self.mode != 'real' or self.bridge is None:
@@ -377,9 +501,13 @@ class Workflow:
                 raise WorkflowError('Go home requires the connected real robot')
             if self.active_job or self.preparing:
                 raise WorkflowError('Stop the current operation before going home')
-            if self.profile is None:
+            if profile:
+                self.resolve_selection({'profile': profile})
+            selected_profile = (self.profile_for_job({'profile': profile}) if profile else
+                                self.profile_for_surface(surface))
+            if selected_profile is None:
                 raise WorkflowError('Home requires a saved calibration profile')
-            profile_bytes=self.profile.read_bytes()
+            profile_bytes=selected_profile.read_bytes()
             profile=yaml.safe_load(profile_bytes)
             if not isinstance(profile,dict):
                 raise WorkflowError('Invalid Home calibration profile')
@@ -387,7 +515,7 @@ class Workflow:
             data={'kind':'pen_job','schema_version':1,'frame':'world','units':'m',
                   'pose_format':'x,y,z,qx,qy,qz,qw','robot_sn':profile.get('robot_sn'),
                   'fake_only':profile.get('fake_only',True),'calibrated':profile.get('calibrated',False),
-                  'profile':profile,'profile_path':str(self.profile),'profile_sha256':profile_digest,
+                  'profile':profile,'profile_path':str(selected_profile),'profile_sha256':profile_digest,
                   'profile_source_sha256':profile_digest,'qualification':profile.get('qualification',{}),
                   'pen':profile.get('pen',{})}
             if not self.bridge.ready():
@@ -403,7 +531,10 @@ class Workflow:
             if not all(name in joints for name in names):raise WorkflowError('Home joint names do not match robot feedback')
             if all(abs(joints[name]-target[i])<.005 for i,name in enumerate(names)):
                 return {'state':'complete','message':'Robot is already at the recorded joint Home'}
-            model=self.model_provider() if self.model_provider else None
+            model_surface=surface or profile.get('surface',{}).get('type')
+            model=(self.model_for_profile(selected_profile) if self.model_for_profile else
+                   self.model_for_surface(model_surface) if self.model_for_surface and model_surface
+                   else self.model_provider() if self.model_provider else None)
             if not model or not model.get('available'):raise WorkflowError('Robot geometry is required to check the joint Home path')
             home_id=secrets.token_hex(8);folder=self.outputs/home_id;folder.mkdir()
             home_path=folder/'job.json';request=folder/'home_request.json'
@@ -470,7 +601,10 @@ class Workflow:
                 self.last_browser = time.monotonic()
             return {'mode': self.mode, 'inputs': sorted(p.name for p in self.inputs.iterdir()
                     if p.is_file() and p.suffix.lower() in ('.png', '.jpg', '.jpeg')),
-                    'default_selection': self.default_selection,
+                    'default_selection': {**self.default_selection, **({'profile': self.profile.name} if self.profile else {})},
+                    'profiles': self.profiles.public(self.mode),
+                    'executor_ready': bool(self.bridge and self.bridge.ready()),
+                    'clearance_check_available': bool(self.clearance_check_path and not self.clearance_check_used),
                     'active_job': self.active_job,
                     'jobs': [self.public_job(j) for j in self.jobs.values() if j['owner'] == key][-30:],
                     'robot': self.bridge.snapshot() if self.bridge else {}}

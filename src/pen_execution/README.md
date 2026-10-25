@@ -155,3 +155,20 @@ the same geometric clearance samples while retiming that route to one-third
 of the original duration (up to 0.45 rad/s). It checks robot joint velocity
 limits and refuses an unsafe return. Active robot operations must be stopped
 first. Completion regenerates the drawing preview from Home.
+
+## One-use raised clearance check
+
+`clearance_check_sha256` is empty by default. An operator-reviewed job with
+`purpose: air_clearance_check` can be enabled for one execution by pinning its
+exact SHA-256 at executor startup. This is a commissioning motion, not a completed
+surface qualification. It requires the existing commissioned real Cartesian
+executor and existing RT/pen/tool qualifications; only the unproven surface
+clearance and regular drawing approach/park are replaced by the complete approved
+air path. No normal profile qualification flags are changed.
+
+Before motion, the executor independently enforces all extrusion off, a planar
+surface, a 19 mm minimum tool-capsule clearance, a 250 mm local workspace, a
+180-second duration, 6 mm/s linear speed, 0.1 rad/s angular speed, 0.15 m/s²
+acceleration, return to the initial pose, and a 0.5 mm match to the measured start.
+Normal heartbeat, Stop, tracking and controller checks remain active. The permit
+is consumed before the controller switches; retrying requires explicit rearming.

@@ -77,6 +77,18 @@ def test_real_profile_keeps_its_own_mount(model_root):
     assert model['joints'][0]['xyz'] == [0, 0, .15]
 
 
+def test_explicit_preview_workpiece_keeps_its_own_mount(model_root):
+    path=model_root/'src/pen_description/config/fake.yaml'
+    data=yaml.safe_load(path.read_text())
+    data.update(surface={'type':'plane'},workpiece={'id':'photo_board'})
+    path.write_text(yaml.safe_dump(data))
+    with patch('pen_bringup.model.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=URDF)):
+        model=Model(model_root).get()
+    assert model['visualization']['flat_mount'] is None
+    assert model['visualization']['jig_mount'] is None
+    assert model['visualization']['holder_mount'] is None
+
+
 def test_registration_rejects_changed_cad(model_root):
     (model_root / 'assets/meshes/pen_holder.stl').write_bytes(b'changed mesh')
     with patch('pen_bringup.model.subprocess.run', return_value=SimpleNamespace(returncode=0, stdout=URDF)):

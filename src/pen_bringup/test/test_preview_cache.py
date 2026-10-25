@@ -1,5 +1,6 @@
 import json
 import time
+from types import SimpleNamespace
 
 from pen_bringup.preview_cache import PreviewCache, REQUIRED
 from pen_bringup.service import Workflow
@@ -53,14 +54,21 @@ def wait_ready(flow, identifier):
     return flow.jobs[identifier]
 
 
-def test_verified_preview_reused_with_fresh_review_and_after_restart(tmp_path):
+def test_verified_preview_reused_with_fresh_review_and_after_restart(tmp_path, monkeypatch):
     generator = Generator()
-    flow = Workflow(tmp_path, 'preview', bridge=generator)
+    def run_worker(command, **kwargs):
+        assert command[1:3] == ['-m', 'pen_toolpath.worker']
+        from pathlib import Path
+        request = json.loads(Path(command[command.index('--request')+1]).read_text())
+        generator.generate(request, Path(command[command.index('--out')+1]))
+        return SimpleNamespace(returncode=0, poll=lambda: 0)
+    monkeypatch.setattr('pen_bringup.service.subprocess.Popen', run_worker)
+    flow = Workflow(tmp_path, 'preview')
     (flow.inputs / 'sun.png').write_bytes(b'unchanged image')
     first = wait_ready(flow, flow.prepare('owner', {'image': 'sun.png'})['id'])
     assert generator.calls == 1
     assert first['cache_saved']
-    restarted = Workflow(tmp_path, 'preview', bridge=generator)
+    restarted = Workflow(tmp_path, 'preview')
     second = wait_ready(restarted, restarted.prepare('new-owner', {'image': 'sun.png'})['id'])
     assert generator.calls == 1
     assert second['cache_hit']

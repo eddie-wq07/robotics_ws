@@ -96,7 +96,8 @@ def _add_annotations(image_path, image_size, image_hash, made, width_mm):
     return sha256(raw).hexdigest()
 
 
-def extract_drawing(image_path, output_directory=None, *, size_mm=20.0, fill=False, process=None):
+def extract_drawing(image_path, output_directory=None, *, size_mm=20.0, fill=False, process=None,
+                    image_mode='auto'):
     size_mm = float(size_mm)
     if not math.isfinite(size_mm) or not 1 <= size_mm <= 200:
         raise ValueError('size_mm must be finite and between 1 and 200')
@@ -112,7 +113,9 @@ def extract_drawing(image_path, output_directory=None, *, size_mm=20.0, fill=Fal
     # The first physical workflow is single-layer. Retain the original feature
     # extraction algorithms, with one strand per outline/detail centreline.
     process['levels'] = {'fill': 1, 'outline': [1], 'detail': [1]}
-    made = make_relief(image_path, size_mm, process, fill=fill)
+    if image_mode not in ('auto', 'lineart', 'silhouette', 'photo'):
+        raise ValueError('Unknown image processing mode')
+    made = make_relief(image_path, size_mm, process, mode=image_mode, fill=fill)
     image_hash = sha256(image_path.read_bytes()).hexdigest()
     annotation_hash = _add_annotations(image_path, image_size, image_hash, made,
                                        process['pen']['strand_width_mm'])
@@ -151,7 +154,7 @@ def extract_drawing(image_path, output_directory=None, *, size_mm=20.0, fill=Fal
     drawing = {'schema_version': 1, 'kind': 'pen_drawing', 'units': 'm', 'frame': 'drawing',
                'axis_convention': 's right, t up, origin image centre', 'size_mm': size_mm,
                'image_sha256': image_hash,
-               'settings': {'size_mm': size_mm, 'fill': bool(fill)}, 'strokes': output,
+               'settings': {'size_mm': size_mm, 'fill': bool(fill), 'image_mode': image_mode}, 'strokes': output,
                'bounds_mm': made['bounds_mm']}
     if annotation_hash is not None:
         drawing['annotation_sha256'] = annotation_hash

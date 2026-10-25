@@ -1,4 +1,5 @@
 #include "pen_execution/job.hpp"
+#include "pen_execution/clearance_check.hpp"
 #include "pen_execution/stop_on_unwind.hpp"
 #include "pen_execution/warmup.hpp"
 
@@ -66,6 +67,7 @@ class Executor : public rclcpp::Node {
     serial_ = declare_parameter<std::string>("robot_sn", "Rizon4s-000000");
     jobs_root_ = declare_parameter<std::string>("jobs_root", "/home/ubuntu/robotics_ws/assets/outputs");
     commissioning_ = declare_parameter<bool>("commissioning_verified", false);
+    clearance_permit_ = declare_parameter<std::string>("clearance_check_sha256", "");
     require_heartbeat_ = declare_parameter<bool>("require_heartbeat", true);
     heartbeat_timeout_ = declare_parameter<double>("heartbeat_timeout", 2.0);
     tracking_limit_ = declare_parameter<double>("tracking_limit_m", 0.005);
@@ -430,6 +432,12 @@ class Executor : public rclcpp::Node {
   void hardware_preflight(const Job& job) {
     const std::string purpose=job.source["purpose"] ? job.source["purpose"].as<std::string>() : "";
     const bool joint_return=purpose=="joint_home" || purpose=="joint_retreat";
+    const bool clearance=clearance_check_job(job);
+    if(clearance) {
+      if(mode_!="real" || backend_!="cartesian" || clearance_used_)
+        throw std::runtime_error("Clearance check requires an unused real Cartesian permit");
+      validate_clearance_check(job,clearance_permit_,serial_);
+    }
     auto request=std::make_shared<controller_manager_msgs::srv::ListHardwareComponents::Request>();
     const auto response=call<controller_manager_msgs::srv::ListHardwareComponents>(hardware_client_,request);
     if (response->component.size()!=1)
@@ -443,11 +451,11 @@ class Executor : public rclcpp::Node {
       if (interface.name==serial_+"_joint1/position") identity=true;
     if (!identity) throw std::runtime_error("Loaded robot identity does not match executor");
     if (!fake) {
-      if (!commissioning_ || job.fake_only || !job.calibrated)
+      if (!commissioning_ || (!clearance && (job.fake_only || !job.calibrated)))
         throw std::runtime_error("Physical execution requires measured calibration and commissioning_verified=true");
       const auto qualified=job.source["qualification"];
       for (const char* field:{"rt", "clearance", "pen", "tool"})
-        if (!(joint_return && std::string(field)=="clearance") &&
+        if (!((joint_return || clearance) && std::string(field)=="clearance") &&
             (!qualified || !qualified[field] || !qualified[field].as<bool>()))
           throw std::runtime_error(std::string("Physical qualification missing: ")+field);
       if (!job.source["profile_path"] || !job.source["profile_source_sha256"])
@@ -779,6 +787,7 @@ class Executor : public rclcpp::Node {
       validated_path=job.path;
       const bool returning_home=job.source["purpose"] && job.source["purpose"].as<std::string>()=="joint_home";
       const bool retreating=job.source["purpose"] && job.source["purpose"].as<std::string>()=="joint_retreat";
+      const bool clearance=clearance_check_job(job);
       {
         std::lock_guard<std::mutex> lock(mutex_); job_digest_=job.digest;
       }
@@ -798,7 +807,7 @@ class Executor : public rclcpp::Node {
         result->success=true;result->message=retreating ? "Retreated clear of surface" : "Returned to recorded joint home";
         set_phase("COMPLETE",1);busy_=false;goal->succeed(result);return;
       }
-      if (mode_=="real") {
+      if (mode_=="real" && !clearance) {
         const auto settings=job.source["motion_settings"];
         const double approach_scale=settings && settings["approach_speed_scale"] ? settings["approach_speed_scale"].as<double>() : 1.;
         const auto approach=job.source["joint_routes"]["approach"];
@@ -820,6 +829,12 @@ class Executor : public rclcpp::Node {
             std::to_string(distance(current,job.samples.front().pose)*1000.)+" mm position error (limit "+
             std::to_string(start_tolerance_*1000.)+" mm), "+
             std::to_string(angular_distance(current,job.samples.front().pose))+" rad orientation error (limit 0.03 rad)");
+      }
+      if(clearance) {
+        if(distance(measured(),job.samples.front().pose)>.0005 ||
+           angular_distance(measured(),job.samples.front().pose)>.01)
+          throw std::runtime_error("Robot moved away from the approved clearance-check start");
+        clearance_used_=true;
       }
       begin_cartesian();
       if (mode_=="fake") fake_position(job.samples.front().pose);
@@ -859,7 +874,7 @@ class Executor : public rclcpp::Node {
       const auto state=controllers();
       if (state.at("rizon_arm_controller")!="active" || state.at("flexiv_cartesian_controller")!="inactive")
         throw std::runtime_error("Joint control restoration failed");
-      if (mode_=="real") {
+      if (mode_=="real" && !clearance) {
         const auto routes=job.source["joint_routes"];
         if(routes["cartesian_park_pose"]) {
           if(distance(measured(),job.samples.back().pose)>start_tolerance_ ||
@@ -897,6 +912,8 @@ class Executor : public rclcpp::Node {
   }
 
   std::string mode_,backend_,manager_,serial_,jobs_root_;
+  std::string clearance_permit_;
+  bool clearance_used_{false};
   bool commissioning_,require_heartbeat_;
   double heartbeat_timeout_,tracking_limit_,start_tolerance_,target_rate_hz_;
   std::vector<std::string> joint_names_;

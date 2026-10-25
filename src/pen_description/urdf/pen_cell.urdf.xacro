@@ -12,6 +12,8 @@
   <xacro:arg name="surface_type" default="sphere"/>
   <xacro:arg name="surface_radius" default="0.0291"/>
   <xacro:arg name="surface_height" default="0.03"/>
+  <xacro:arg name="plane_visual_mesh" default=""/>
+  <xacro:arg name="plane_size_m" default="0.08 0.1 0.0025"/>
   <xacro:arg name="workpiece_holder_xyz" default="0 0 0"/>
   <xacro:arg name="workpiece_holder_rpy" default="0 0 0"/>
   <xacro:arg name="workpiece_bottle_xyz" default="0 0 0"/>

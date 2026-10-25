@@ -81,11 +81,12 @@ class Model:
                                          if limit is not None and limit.get(key) is not None},
                                **origin(joint)})
             synthetic = bool(profile_data.get('synthetic') or profile_data.get('fake_only'))
+            legacy_display = synthetic and not profile_data.get('workpiece')
             display = yaml.safe_load(display_bytes) or {}
             measured = yaml.safe_load(measured_bytes) or {}
-            mount = display.get('holder_mount') if synthetic else None
-            sphere_mount = display.get('sphere_mount') if synthetic and profile_data.get('surface', {}).get('type') == 'sphere' else None
-            flat_mount = display.get('flat_mount') if synthetic and profile_data.get('surface', {}).get('type') == 'plane' else None
+            mount = display.get('holder_mount') if legacy_display else None
+            sphere_mount = display.get('sphere_mount') if legacy_display and profile_data.get('surface', {}).get('type') == 'sphere' else None
+            flat_mount = display.get('flat_mount') if legacy_display and profile_data.get('surface', {}).get('type') == 'plane' else None
             joint_snapshot = display.get('joint_snapshot') if synthetic and not profile_data.get('workpiece') else None
             home = profile_data.get('home', {})
             if not joint_snapshot and home.get('joint_positions_rad'):
@@ -130,7 +131,7 @@ class Model:
                                'joint_snapshot': joint_snapshot,
                                'sphere_mount': sphere_mount,
                                'flat_mount': flat_mount,
-                               'jig_mount': measured.get('T_base_jig') if synthetic else None,
+                               'jig_mount': measured.get('T_base_jig') if legacy_display else None,
                                'measurements': {'profile_id': measured.get('profile_id'),
                                    'jig_far_edge_m': measured.get('measurements', {}).get('jig_far_edge_in_base_m'),
                                    'jig_note': measured.get('measurements', {}).get('jig_registration_note')}}}

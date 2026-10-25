@@ -16,20 +16,6 @@ def prepare(request, output):
     output = Path(output); output.mkdir(parents=True, exist_ok=True)
     progress = ProgressWriter(output)
     progress('image')
-    image = request.get('image_path')
-    drawing_path = request.get('drawing_path')
-    if drawing_path:
-        drawing = json.loads(Path(drawing_path).read_text())
-        write_json(output/'drawing.json', drawing)
-    elif image:
-        drawing = extract_drawing(image, output, size_mm=request.get('size_mm',20), fill=request.get('fill',False))
-    else:
-        raise ValueError('request requires image_path or drawing_path')
-    if request.get('stage') == 'image':
-        return {'success':True,'artifact_path':str((output/'drawing.json').resolve())}
-    settings = dict(request.get('settings') or {})
-    for key in ['speed_m_s','travel_speed_m_s','sample_rate_hz','stand_off_m','lift_m','clearance_margin_m','air_offset_m']:
-        if key in request: settings[key] = request[key]
     profile=request.get('profile')
     profile_file=request.get('profile_path')
     source_bytes=None
@@ -37,6 +23,21 @@ def prepare(request, output):
         profile_file=Path(profile_file).resolve()
         source_bytes=profile_file.read_bytes()
         profile=yaml.safe_load(source_bytes)
+    image = request.get('image_path')
+    drawing_path = request.get('drawing_path')
+    if drawing_path:
+        drawing = json.loads(Path(drawing_path).read_text())
+        write_json(output/'drawing.json', drawing)
+    elif image:
+        drawing = extract_drawing(image, output, size_mm=request.get('size_mm',20), fill=request.get('fill',False),
+                                  image_mode=(profile or {}).get('image_processing',{}).get('mode','auto'))
+    else:
+        raise ValueError('request requires image_path or drawing_path')
+    if request.get('stage') == 'image':
+        return {'success':True,'artifact_path':str((output/'drawing.json').resolve())}
+    settings = dict(request.get('settings') or {})
+    for key in ['speed_m_s','travel_speed_m_s','sample_rate_hz','stand_off_m','lift_m','clearance_margin_m','air_offset_m']:
+        if key in request: settings[key] = request[key]
     # Preserve smooth continuous strokes with either hardware controller.
     if request.get('execution_backend', 'cartesian') in ('cartesian', 'joint'):
         settings.setdefault('continuous_strokes', True)

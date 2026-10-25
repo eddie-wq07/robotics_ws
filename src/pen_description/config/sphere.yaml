@@ -3823,10 +3823,10 @@ acceptance_scope: Operator-approved sphere setup; offline route checks passed. F
   drawing remains pending.
 drawing:
   sample_rate_hz: 1000
-  draw_speed_scale: 3.0
+  draw_speed_scale: 1.75  # 4 mm/s x 1.75 = 7 mm/s tracing
   non_extruding_speed_scale: 3.0
   speed_m_s: 0.004
-  travel_speed_m_s: 0.0075
+  travel_speed_m_s: 0.005  # 5 mm/s x 3 = 15 mm/s non-extruding travel
   approach_speed_scale: 1.0
 home:
   controller: rizon_arm_controller

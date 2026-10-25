@@ -13,7 +13,7 @@ from urllib.parse import unquote, urlparse, parse_qs
 from urllib.request import urlopen
 from urllib.error import URLError, HTTPError
 
-from .service import Workflow, WorkflowError
+from .service import Workflow, WorkflowError, digest
 
 
 class RosBridge:
@@ -304,8 +304,16 @@ def make_handler(flow, web_root, model, camera_url='http://127.0.0.1:8082'):
                         return self.send({'error': 'Robot camera unavailable; reconnecting'}, code=503)
                 if path == '/api/state':
                     return self.send(flow.state(key))
+                if path == '/api/selection':
+                    query = parse_qs(urlparse(self.path).query)
+                    return self.send(flow.resolve_selection({k: v[0] for k, v in query.items()
+                                     if k in ('image', 'surface', 'profile', 'fallback_profile')}, allow_preview=True))
                 if path == '/api/model':
-                    surface = parse_qs(urlparse(self.path).query).get('surface', [None])[0]
+                    query = parse_qs(urlparse(self.path).query)
+                    if query.get('profile'):
+                        selected = flow.resolve_selection({'profile': query['profile'][0]}, allow_preview=True)
+                        return self.send(flow.model_for_profile(flow.profiles.records()[selected['profile']]['path']))
+                    surface = query.get('surface', [None])[0]
                     if surface is not None and flow.model_for_surface:
                         return self.send(flow.model_for_surface(surface))
                     return self.send(model())
@@ -375,11 +383,15 @@ def make_handler(flow, web_root, model, camera_url='http://127.0.0.1:8082'):
                 if self.path == '/api/invalidate':
                     flow.invalidate(key)
                     return self.send({'ok': True})
+                if self.path == '/api/profile-flags':
+                    return self.send(flow.update_profile_flags(key, data))
+                if self.path == '/api/clearance-check':
+                    return self.send(flow.load_clearance_check(key))
                 if self.path == '/api/execute':
                     return self.send(flow.execute(key, data.get('job_id'), data.get('preview_token'),
                                                   data.get('air_run', False)), code=202)
                 if self.path == '/api/home':
-                    return self.send(flow.home(key, data.get('job_id')), code=202)
+                    return self.send(flow.home(key, data.get('job_id'), data.get('surface'), data.get('profile')), code=202)
                 if self.path == '/api/warmup':
                     return self.send(flow.warmup(key), code=202)
                 if self.path == '/api/stop':
@@ -399,6 +411,7 @@ def main():
     parser.add_argument('--mode', choices=('preview', 'fake', 'real'), default='preview')
     parser.add_argument('--profile')
     parser.add_argument('--prepared-job', help='Reuse this checked job when its inputs and starting pose match')
+    parser.add_argument('--clearance-check', help='Exact operator-reviewed extrusion-off commissioning job')
     parser.add_argument('--no-ros', action='store_true')
     parser.add_argument('--camera-url', default='http://127.0.0.1:8082')
     args, ros_args = parser.parse_known_args()
@@ -409,6 +422,12 @@ def main():
         rclpy.init(args=ros_args, signal_handler_options=SignalHandlerOptions.NO)
         bridge = RosBridge(f'pen_web_bridge_{args.port}')
     flow = Workflow(args.root, args.mode, args.profile, bridge, prepared_job=args.prepared_job)
+    if args.clearance_check:
+        path = Path(args.clearance_check).resolve()
+        if not path.is_relative_to(flow.outputs.resolve()) or args.mode != 'real':
+            raise WorkflowError('Clearance check requires a real server and a job within assets/outputs')
+        flow.clearance_check_path = path
+        flow.clearance_check_digest = digest(path)
     if bridge:
         bridge.workflow = flow
     try:
@@ -417,19 +436,17 @@ def main():
     except (ImportError, LookupError):
         web = Path(__file__).resolve().parents[1] / 'web'
     from .model import Model
-    model = Model(flow.root, flow.profile, flow.mode)
-    flow.model_provider = model.get
-    if args.mode == 'preview' and flow.profile and flow.profile.name == 'tylenol.yaml':
-        config = flow.root / 'src/pen_description/config'
-        flow.surface_profiles = {kind: config / name for kind, name in
-                                 [('plane', 'flat.yaml'), ('sphere', 'sphere.yaml'), ('cylinder', 'tylenol.yaml')]}
-        models = {kind: Model(flow.root, path, 'preview') for kind, path in flow.surface_profiles.items()}
-        def model_for_surface(kind):
-            if kind not in models:
-                raise WorkflowError('Unknown workpiece')
-            return models[kind].get()
-        flow.model_for_surface = model_for_surface
-    server = ThreadingHTTPServer((args.host, args.port), make_handler(flow, web, model.get, args.camera_url))
+    models = {}
+    def model_for_profile(path):
+        path = Path(path).resolve()
+        key = (path, flow.planning_mode(path))
+        if key not in models:
+            models[key] = Model(flow.root, path, key[1])
+        return models[key].get()
+    flow.model_provider = lambda: model_for_profile(flow.profile)
+    flow.model_for_profile = model_for_profile
+    flow.model_for_surface = lambda kind: model_for_profile(flow.profile_for_surface(kind))
+    server = ThreadingHTTPServer((args.host, args.port), make_handler(flow, web, flow.model_provider, args.camera_url))
     # ROS launch/background shells may pass an ignored SIGINT disposition.
     # Own shutdown in the HTTP thread; ROS spinning uses the same cleanup path.
     signal.signal(signal.SIGINT, signal.default_int_handler)

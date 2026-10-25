@@ -5,6 +5,7 @@ import pytest
 
 from tactile.slicer import slice_relief
 from tactile.surface import load_surface
+from pen_toolpath.clearance import MIN_PEN_CLEARANCE_M
 from tests.conftest import ROOT
 
 
@@ -18,10 +19,14 @@ def test_strokes_sit_on_their_layer_and_travels_lift_clear(house, process, name)
     assert not toolpath["legibility"]["warnings"]
     for stroke in toolpath["strokes"]:
         lift, normal = surface.height_and_normal(np.asarray(stroke["points_m"]))
-        assert np.allclose(lift, (stroke["layer"] - 0.5) * height, atol=1e-6)
+        assert np.allclose(lift, MIN_PEN_CLEARANCE_M + (stroke["layer"] - 1) * height, atol=1e-6)
         assert np.allclose(normal, stroke["normals"], atol=1e-5)
         steps = np.linalg.norm(np.diff(stroke["points_m"], axis=0), axis=1)
-        assert steps.max() < 1.1e-3  # Sampled every millimetre or less.
+        # Spacing is sampled in surface coordinates; curved offset layers expand it.
+        bound = (process["slice"]["sample_mm"] / 1000
+                 * float(surface.scale(0.0, 0.0))
+                 * surface.offset_scale(stroke["lift_mm"] / 1000))
+        assert steps.max() <= bound + 2e-7  # Exported coordinates round to 0.1 micrometre.
     for travel in toolpath["travels"]:
         lift, _ = surface.height_and_normal(np.asarray(travel["points_m"]))
         across = np.asarray(travel["lifts_mm"]) / 1000

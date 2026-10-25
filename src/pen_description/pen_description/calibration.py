@@ -1,8 +1,11 @@
 """Strict profile loading for model rendering and application preflight."""
 from copy import deepcopy
+import hashlib
+import json
 import math
 from pathlib import Path
 import re
+import struct
 import yaml
 
 TRANSFORMS = ('T_world_surface', 'T_world_base', 'T_base_jig', 'T_flange_holder',
@@ -105,8 +108,39 @@ def load_profile(path, *, mode='preview', robot_sn=None):
             transform(profile.get('workpiece', {}), key)
     elif mode == 'real' or 'size_m' in surface:
         size = _numbers(surface.get('size_m'), 3, 'surface.size_m')
-        if any(abs(a-b) > 1e-8 for a, b in zip(size, [0.08, 0.10, 0.0025])):
+        if any(value <= 0 for value in size):
+            raise ValueError('surface.size_m requires positive dimensions')
+        custom_mesh = bool(profile.get('workpiece', {}).get('plane_mesh'))
+        if not custom_mesh and any(abs(a-b) > 1e-8 for a, b in zip(size, [0.08, 0.10, 0.0025])):
             raise ValueError('surface.size_m differs from the canonical flat STL: 0.08 x 0.10 x 0.0025 m')
+        if custom_mesh and mode == 'real':
+            workpiece = profile['workpiece']
+            relative_mesh = Path(workpiece['plane_mesh'])
+            if relative_mesh.is_absolute() or '..' in relative_mesh.parts or relative_mesh.suffix != '.glb':
+                raise ValueError('Custom plane requires a relative GLB asset path')
+            asset_root = Path(__file__).resolve().parents[1] / 'assets'
+            if not asset_root.is_dir():
+                from ament_index_python.packages import get_package_share_directory
+                asset_root = Path(get_package_share_directory('pen_description')) / 'assets'
+            raw = (asset_root / relative_mesh).read_bytes()
+            if hashlib.sha256(raw).hexdigest() != workpiece.get('plane_mesh_sha256'):
+                raise ValueError('Custom plane mesh digest does not match its recorded geometry')
+            magic, version, length = struct.unpack_from('<4sII', raw)
+            if magic != b'glTF' or version != 2 or length != len(raw):
+                raise ValueError('Invalid custom plane GLB')
+            count, kind = struct.unpack_from('<II', raw, 12)
+            if kind != 0x4E4F534A:
+                raise ValueError('Custom plane GLB lacks geometry metadata')
+            scene = json.loads(raw[20:20+count])
+            if any(any(k in node for k in ('matrix','translation','rotation','scale','children')) for node in scene['nodes']):
+                raise ValueError('Custom plane GLB must use surface-frame geometry without node transforms')
+            bounds = [scene['accessors'][primitive['attributes']['POSITION']]
+                      for mesh in scene['meshes'] for primitive in mesh['primitives']]
+            low = [min(_numbers(b['min'], 3, 'mesh minimum')[i] for b in bounds) for i in range(3)]
+            high = [max(_numbers(b['max'], 3, 'mesh maximum')[i] for b in bounds) for i in range(3)]
+            expected_low, expected_high = [-size[0]/2, -size[1]/2, -size[2]], [size[0]/2, size[1]/2, 0.]
+            if any(abs(a-b)>1e-7 for a,b in zip(low+high, expected_low+expected_high)):
+                raise ValueError('Custom plane mesh dimensions or top-face origin do not match the profile')
     if mode == 'fake' and not (profile.get('fake_only') is True and profile.get('synthetic') is True):
         raise ValueError('Fake mode requires an explicitly synthetic fake-only profile')
     if mode == 'real':
@@ -154,6 +188,12 @@ def xacro_mappings(profile):
     result['T_jig_surface_xyz'] = ' '.join(map(str, xyz))
     result['T_jig_surface_rpy'] = ' '.join(map(str, quaternion_rpy(q)))
     result['surface_type'] = profile['surface']['type']
+    if profile['surface']['type'] == 'plane' and profile.get('workpiece', {}).get('plane_mesh'):
+        mesh = Path(profile['workpiece']['plane_mesh'])
+        if mesh.is_absolute() or '..' in mesh.parts or mesh.suffix != '.glb':
+            raise ValueError('Custom plane mesh must be a relative GLB asset path')
+        result['plane_visual_mesh'] = 'package://pen_description/assets/' + str(mesh)
+        result['plane_size_m'] = ' '.join(map(str, profile['surface']['size_m']))
     if profile['surface']['type'] == 'cylinder':
         result['surface_radius'] = str(profile['surface']['radius_m'])
         result['surface_height'] = str(profile['surface']['height_m'])

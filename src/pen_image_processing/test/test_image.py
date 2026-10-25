@@ -15,6 +15,24 @@ def test_image_to_independent_drawing(tmp_path):
     assert 'robot_sn' not in result
 
 
+def test_photo_edges_preserve_full_image_frame(tmp_path):
+    from PIL import Image, ImageDraw
+    import json
+    photo = Image.new('RGB', (200, 100), '#cccccc')
+    painter = ImageDraw.Draw(photo)
+    painter.rectangle((60, 20, 140, 80), fill='#222222')
+    source = tmp_path/'photo.png'; photo.save(source)
+    drawing = extract_drawing(source, tmp_path/'result', size_mm=40, image_mode='photo')
+    assert drawing['settings']['image_mode'] == 'photo'
+    assert drawing['strokes']
+    assert all(s['kind'] == 'photo-detail' for s in drawing['strokes'])
+    relief = json.loads((tmp_path/'result/relief.json').read_text())
+    assert relief['notes']['frame_preserved']
+    # The 80-pixel-wide rectangle occupies 16 mm of the full 200-pixel frame.
+    points = [p for s in drawing['strokes'] for p in s['points_m']]
+    assert max(p[0] for p in points)-min(p[0] for p in points) == pytest.approx(.016, abs=.001)
+
+
 def test_fill_does_not_retrace_its_shell_as_an_outline(monkeypatch):
     from shapely.geometry import box
     from pen_image_processing import api

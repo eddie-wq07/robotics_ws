@@ -3,6 +3,7 @@ import { loadVisual, registerDisplayModel, applyJointPositions } from './robot_v
 import { cloneSurfaceVisual, displayDrawRows } from './display_geometry.js';
 import { preparationDisplay } from './preparation_progress.js';
 import { executionDisplay } from './execution_progress.js';
+import { executionAvailability } from './execution_availability.js';
 
 const app = document.querySelector('#app');
 app.innerHTML = `<div class="assembly-page">
@@ -10,7 +11,16 @@ app.innerHTML = `<div class="assembly-page">
     <a class="brand" href="/">3D<span>Pen</span></a>
     <select id="marker" aria-label="Input image"><option>Loading…</option></select>
     <button id="upload">Upload</button><input id="file" type="file" accept="image/jpeg,image/png" hidden>
-    <select id="surface" aria-label="Surface"><option value="plane">Flat surface</option><option value="sphere">80 mm sphere</option><option value="cylinder">Tylenol + holder</option></select>
+    <select id="surface" aria-label="Surface"><option value="plane">Flat surface</option><option value="sphere">80 mm sphere</option><option value="cylinder">Tylenol + holder</option><option value="photo_board" hidden>Photo + cardboard</option></select>
+    <select id="profile" aria-label="Drawing profile" title="Saved YAML profile" hidden></select>
+    <details id="profile-settings" hidden><summary>Profile flags</summary>
+      <div class="profile-flags-popover">
+        <label><input id="profile-calibrated" type="checkbox" role="switch"> Calibrated</label>
+        <label><input id="profile-fake-only" type="checkbox" role="switch"> Fake only</label>
+        <p>Saved profile flags; changing them does not perform physical calibration.</p>
+        <span id="profile-flags-status" role="status"></span>
+      </div>
+    </details>
     <label>Size <input id="size" type="number" value="20" min="1" max="100" step="0.5" style="width:52px"> mm</label>
     <label class="toggle"><input id="fill" type="checkbox"> Fill dark areas</label>
     <span id="print-status" class="compact-status" role="status">Loading…</span>
@@ -53,7 +63,8 @@ app.innerHTML = `<div class="assembly-page">
   <footer class="assembly-playback">
     <button id="warmup" title="Press and release the pen button, then wait 30 seconds. An already-hot pen may start extruding.">Warm up pen · 30s</button>
     <span class="warmup-note">Optional · may extrude if hot</span>
-    <button id="execute" class="primary">Execute</button><button id="stop" disabled>Stop</button>
+    <button id="execute" class="primary" disabled aria-describedby="execute-reason">Execute</button><span id="execute-reason" role="status"></span><button id="stop" disabled>Stop</button>
+    <button id="load-clearance-check" hidden>Load approved air check</button>
     <button id="play" class="primary" disabled>Play</button>
     <select id="rate" aria-label="Playback speed"><option value="1">1×</option><option value="10" selected>10×</option><option value="30">30×</option></select>
     <input id="seek" aria-label="Playback progress" type="range" min="0" max="1" step="any" value="0" disabled>
@@ -87,6 +98,10 @@ try{fillChoices=JSON.parse(localStorage.getItem('pen-fill-selections')) || {};}c
 function restoreFill(){ $('#fill').checked=fillChoices[$('#marker').value]===true; }
 let modelSurfaceType = null;
 let jointSnapshot = null;
+let catalogProfiles = [], catalogKey = '', appliedProfileHash = null;
+let savingFlags=false, executorReady=false;
+let clearanceCheckAvailable=false;
+let changingSelection = false, selectionRevision = 0, selectionTask = Promise.resolve();
 let travelPath = null, toolMount = null, strandRadius = .0005;
 async function api(path, body) {
   const response = await fetch(path, body === undefined ? {} : {method:'POST', headers:{'Content-Type':'application/json','X-Pen-Request':'1'}, body:JSON.stringify(body)});
@@ -95,6 +110,7 @@ async function api(path, body) {
   return value;
 }
 function message(text) { $('#print-status').textContent = text; }
+function strokeViewDirection() { return $('#surface').value==='photo_board'?[-1,1,2]:[1,-1,2]; }
 function panelLoading(panel, text, failed=false) {
   const box=$(`#${panel}-loading`);box.hidden=!text;
   box.querySelector('span').textContent=text || '';
@@ -130,7 +146,7 @@ async function showPreparation(info, version) {
     if(version!==generation)return;
     views.strokes.clear();views.strokes.content.add(strokeSurface(path.surface));
     const strokes=views.strokes.strokes(path);
-    views.strokes.frame(path.surface.type==='cylinder'?views.strokes.content:strokes,{margin:3.2,direction:[1,-1,2]});
+    views.strokes.frame(path.surface.type==='cylinder'?views.strokes.content:strokes,{margin:3.2,direction:strokeViewDirection()});
     partialPreviewId=info.id;
     $('#show-surface').onchange=()=>{views.strokes.content.children[0].visible=$('#show-surface').checked;views.strokes.requestRender();};
   }
@@ -171,19 +187,35 @@ function updateOperation(state) {
 }
 setInterval(()=>{if(operation?.running)renderOperation();},250);
 function controls() {
-  $('#execute').disabled = false;
+  app.classList.toggle('photo-view',$('#surface').value==='photo_board');
+  $('#size').max=$('#surface').value==='photo_board'?'200':'100';
+  const profile=catalogProfiles.find(p=>p.id===$('#profile').value);
+  const availability=executionAvailability({mode, profile, job:current, previewToken,
+    executorReady, active, busy, changingSelection, preparationWanted,
+    savingFlags, homePending, warmupPending, executePending});
+  $('#execute').disabled=!availability.enabled;
+  $('#execute').textContent=current?.clearance_check?'Execute air check':'Execute';
+  $('#execute').title=availability.reason;
+  $('#execute-reason').textContent=availability.reason;
+  $('#load-clearance-check').hidden=!clearanceCheckAvailable;
+  $('#load-clearance-check').disabled=busy || active || changingSelection || homePending || warmupPending || executePending;
+  $('#profile-settings').hidden=!profile;
+  for(const [id,key] of [['#profile-calibrated','calibrated'],['#profile-fake-only','fake_only']]){
+    if(!savingFlags)$(id).checked=profile?.[key]===true;
+    $(id).disabled=!profile || savingFlags || changingSelection || busy || active || homePending || warmupPending || executePending;
+  }
   $('#warmup').disabled = false;
   $('#go-home').disabled = false;
   $('#stop').disabled = !active && !busy && !playing && !warmupPending && !homePending && !executePending;
   $('#play').disabled = !robotPreview || busy || active;
   $('#seek').disabled = !robotPreview || busy || active;
-  for (const id of ['#marker','#surface','#size','#fill','#upload']) $(id).disabled = active || warmupPending || executePending || homePending;
+  for (const id of ['#marker','#surface','#profile','#size','#fill','#upload']) $(id).disabled = savingFlags || active || warmupPending || executePending || homePending;
 }
 function invalidate() {
   try{
     fillChoices[$('#marker').value]=$('#fill').checked;
     localStorage.setItem('pen-fill-selections',JSON.stringify(fillChoices));
-    localStorage.setItem('pen-selection',JSON.stringify({image:$('#marker').value,surface:$('#surface').value,size_mm:Number($('#size').value)}));
+    localStorage.setItem('pen-selection',JSON.stringify({image:$('#marker').value,surface:$('#surface').value,profile:$('#profile').value || undefined,size_mm:Number($('#size').value)}));
   }catch{}
   clearTimeout(prepareTimer); preparationWanted = true;
   generation++; previewToken = null; current = null; compiled = null; robotPreview = null; playing = false;
@@ -205,14 +237,17 @@ function setTransform(object, value) {
   object.quaternion.setFromEuler(new THREE.Euler(...(value.rpy || [0,0,0]), 'ZYX'));
 }
 function material(color=0xb8c7d4, opacity=1) { return new THREE.MeshStandardMaterial({color,roughness:.65,transparent:opacity<1,opacity}); }
-async function loadModel(selectedSurface = null) {
-  const model = await api('/api/model' + (selectedSurface ? `?surface=${encodeURIComponent(selectedSurface)}` : ''));
+async function loadModel(selectedSurface = null, selectedProfile = $('#profile').value) {
+  const query = new URLSearchParams();
+  if(selectedSurface)query.set('surface',selectedSurface);
+  if(selectedProfile)query.set('profile',selectedProfile);
+  const model = await api('/api/model' + (query.size ? `?${query}` : ''));
   if (!model.available) { $('#assembly-status').textContent = 'Assembly will appear when the description is available.'; return; }
   views.strokes.clear(); registeredWorkpiece = null;
   if(robotRoot){robotRoot.traverse(o=>o.geometry?.dispose());views.robot.content.remove(robotRoot);}
   robotJoints=[];robotSurfaces=[];modelHash=model.profile_source_sha256;
   modelSurfaceType=model.surface?.type;
-  if(generation===0 && modelSurfaceType)$('#surface').value=modelSurfaceType;
+  if(generation===0 && modelSurfaceType)$('#surface').value=selectedSurface || modelSurfaceType;
   jointSnapshot=model.visualization?.joint_snapshot || null;
   robotRoot = new THREE.Group(); views.robot.content.add(robotRoot);
   const links = new Map(model.links.map(link => [link.name, new THREE.Group()]));
@@ -278,7 +313,7 @@ function strokeSurface(spec) {
 async function showJob(jobInfo, version) {
   const base=`/api/job/${jobInfo.id}`;
   const [job,path,report,motion]=await Promise.all(['job.json','toolpath.json','report.json','robot_preview.json'].map(name=>api(`${base}/${name}`)));
-  if(job.profile_source_sha256 && job.profile_source_sha256!==modelHash)await loadModel(job.surface.type);
+  if(job.profile_source_sha256 && job.profile_source_sha256!==modelHash)await loadModel(jobInfo.surface || job.surface.type, jobInfo.profile || '');
   if (version!==generation) return;
   if(motion.kind!=='pen_robot_preview' || motion.frames.length<2)throw new Error('Robot motion preview is unavailable');
   compiled=job; robotPreview=motion; current=jobInfo; previewToken=jobInfo.preview_token; at=0;
@@ -297,7 +332,7 @@ async function showJob(jobInfo, version) {
   $('#picture-note').textContent=`${jobInfo.size_mm} mm · extracted 2D drawing`;
   if(job.motion_settings){
     const setting=job.motion_settings;
-    $('#picture-note').textContent=`${jobInfo.size_mm} mm · setup ${setting.approach_speed_scale || 1}× · draw ${setting.draw_speed_m_s*1000} mm/s · travel ${setting.travel_speed_m_s*1000} mm/s · tip ${((setting.stand_off_m+(job.air_offset_m||0))*1000).toFixed(2)} mm above surface${setting.maximum_surface_normal_angle_deg ? ` · ≤${setting.maximum_surface_normal_angle_deg}° from surface normal` : ''}${job.air_run?' · AIR TEST · extrusion OFF':''}${job.pen.recycle_interval_s ? ` · recycle ${job.pen.recycle_interval_s}s` : ''}`;
+    $('#picture-note').textContent=`${jobInfo.size_mm} mm · setup ${setting.approach_speed_scale || 1}× · draw ${setting.draw_speed_m_s*1000} mm/s · travel ${setting.travel_speed_m_s*1000} mm/s · tip ${(setting.stand_off_m*1000).toFixed(2)} mm above surface${setting.maximum_surface_normal_angle_deg ? ` · ≤${setting.maximum_surface_normal_angle_deg}° from surface normal` : ''}${job.air_run?' · AIR TEST · extrusion OFF':''}${job.pen.recycle_interval_s ? ` · recycle ${job.pen.recycle_interval_s}s` : ''}`;
   }
   $('#strokes-note').textContent=`${report.stroke_count} strokes · ${clock(job.duration_s)} · travel with extrusion off`;
   views.strokes.clear(); views.strokes.content.add(strokeSurface(path.surface));
@@ -306,7 +341,7 @@ async function showJob(jobInfo, version) {
   // Deposited material uses a darker colour as simulation or execution advances.
   Viewer.tint(strokes.children[0], {color:jobInfo.fill?0xffffff:0x91a4b8,
     opacity:jobInfo.fill?1:.2,vertexColors:false});
-  views.strokes.frame(path.surface.type==='cylinder'?views.strokes.content:strokes,{margin:3.2,direction:[1,-1,2]});
+  views.strokes.frame(path.surface.type==='cylinder'?views.strokes.content:strokes,{margin:3.2,direction:strokeViewDirection()});
   $('#show-surface').onchange=()=>{views.strokes.content.children[0].visible=$('#show-surface').checked;views.strokes.requestRender();};
   if(pathGroup) { pathGroup.traverse(o=>{o.geometry?.dispose();}); views.robot.content.remove(pathGroup); }
   pathGroup=new THREE.Group(); views.robot.content.add(pathGroup);
@@ -392,7 +427,7 @@ function draw(seconds, live=null) {
 $('#mount').onclick=()=>{if(toolMount)views.robot.frame(toolMount,{margin:1.25,direction:[1,-1,.8]});};
 $('#travel').onclick=()=>{const visible=$('#travel').getAttribute('aria-pressed')!=='true';$('#travel').setAttribute('aria-pressed',visible);if(travelPath)travelPath.visible=visible;views.robot.requestRender();};
 async function prepareCurrent() {
-  if(busy || active || warmupPending || executePending || homePending || !preparationWanted || !$('#marker').value)return;
+  if(changingSelection || busy || active || warmupPending || executePending || homePending || !preparationWanted || !$('#marker').value)return;
   preparationWanted=false;
   busy=true; previewToken=null; robotPreview=null; compiled=null; current=null; playing=false;
   $('#play').textContent='Play';controls(); const version=generation; message('Preparing drawing…');
@@ -400,7 +435,7 @@ async function prepareCurrent() {
   try {
     await invalidation;
     if(version!==generation)return;
-    let info=await api('/api/preview',{image:$('#marker').value,surface:$('#surface').value,size_mm:Number($('#size').value),fill:$('#fill').checked});
+    let info=await api('/api/preview',{image:$('#marker').value,surface:$('#surface').value,size_mm:Number($('#size').value),fill:$('#fill').checked,profile:$('#profile').value || undefined});
     // Finish the pending request before starting the latest selection; the
     // server has one preparation slot. Stale results never unlock Execute.
     while(info.state==='preparing'){
@@ -421,10 +456,21 @@ async function prepareCurrent() {
     $('#strokes-note').textContent=partialPreviewId?'Surface strokes only — robot trajectory was not approved.':'No checked pen-stroke preview is available.';}}
   finally{busy=false;controls();if(preparationWanted)prepareTimer=setTimeout(prepareCurrent,0);}
 }
+$('#load-clearance-check').onclick=async()=>{
+  if(busy || active || changingSelection || homePending || warmupPending || executePending)return;
+  clearTimeout(prepareTimer);preparationWanted=false;generation++;previewToken=null;playing=false;
+  const version=generation;busy=true;controls();
+  try{
+    const info=await api('/api/clearance-check',{});
+    await showJob(info,version);
+    message('Approved air clearance check — extrusion OFF, 20 mm above photo. Press Execute air check to start.');
+  }catch(error){message(error.message);}
+  finally{busy=false;controls();}
+};
 $('#execute').onclick=async()=>{
   if(warmupPending || (operation?.running && operation.kind==='Pen warmup')){message('Wait for warmup to finish, or press Stop.');return;}
   if(executePending||homePending||active){message('The robot is already executing. Use Stop to end this run.');return;}
-  if(busy||preparationWanted){message('Preparing the drawing. Press Execute when it is ready.');return;}
+  if(changingSelection||busy||preparationWanted){message('Preparing the drawing. Press Execute when it is ready.');return;}
   if(!current||!previewToken){message('No ready drawing. Preparing the current selection…');await invalidate();return;}
   if(mode==='preview'){message('This server is preview-only. Real execution requires the connected real-mode server.');return;}
   executePending=true;playing=false;$('#play').textContent='Play';controls();
@@ -459,7 +505,7 @@ $('#go-home').onclick=async()=>{
   homePending=true;playing=false;$('#play').textContent='Play';controls();
   startOperation('Go home','Checking current pose and planning a safe Home route…');
   try{
-    const result=await api('/api/home',{});
+    const result=await api('/api/home',{surface:$('#surface').value,profile:$('#profile').value || undefined});
     message(result.message);
     if(result.state==='executing'){homeJobId=result.id;operation.jobId=result.id;operation.detail=result.message;active=true;renderOperation();}
     else {finishOperation(result.message,result.state!=='complete');if(result.state==='complete')await invalidate();}
@@ -478,13 +524,38 @@ $('#file').onchange=async()=>{
   const file=$('#file').files[0];if(!file)return;
   if(file.size>12*1024*1024){message('Choose an image smaller than 12 MB');return;}
   try{const encoded=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});
-    const result=await api('/api/upload',{name:file.name,data:encoded}); await refresh();$('#marker').value=result.image;await invalidate();}
+    const result=await api('/api/upload',{name:file.name,data:encoded}); await refresh();$('#marker').value=result.image;
+    if(catalogProfiles.length)await selectProfile({image:result.image,fallback_profile:$('#profile').value});
+    else await invalidate();}
   catch(error){message(error.message);}
 };
-$('#marker').onchange=()=>{restoreFill();invalidate().catch(e=>message(e.message));};
+$('#marker').onchange=()=>{
+  if(catalogProfiles.length)selectProfile({image:$('#marker').value,fallback_profile:$('#profile').value});
+  else {restoreFill();invalidate().catch(e=>message(e.message));}
+};
+$('#profile').onchange=()=>selectProfile({profile:$('#profile').value});
+async function saveProfileFlag(key, value){
+  const profile=catalogProfiles.find(p=>p.id===$('#profile').value);
+  if(!profile || savingFlags)return;
+  savingFlags=true;controls();$('#profile-flags-status').textContent='Saving…';
+  try{
+    await api('/api/profile-flags',{profile:profile.id,profile_sha256:profile.sha256,flags:{[key]:value}});
+    previewToken=null;current=null;
+    await refresh();
+    savingFlags=false;
+    await selectProfile({profile:profile.id,image:$('#marker').value},
+      {size_mm:Number($('#size').value),fill:$('#fill').checked});
+    $('#profile-flags-status').textContent=`Saved to ${profile.id}. Drawing preparation refreshed.`;
+  }catch(error){$('#profile-flags-status').textContent=error.message;message(error.message);}
+  finally{savingFlags=false;controls();}
+}
+$('#profile-calibrated').onchange=()=>saveProfileFlag('calibrated',$('#profile-calibrated').checked);
+$('#profile-fake-only').onchange=()=>saveProfileFlag('fake_only',$('#profile-fake-only').checked);
+
 $('#fill').onchange=()=>invalidate().catch(e=>message(e.message));
 $('#surface').onchange=async()=>{
   const selected=$('#surface').value;
+  if(catalogProfiles.length){selectProfile({image:$('#marker').value,surface:selected});return;}
   try {
     await invalidate(); clearTimeout(prepareTimer);
     await loadModel(selected);
@@ -500,6 +571,30 @@ for(const id of ['#home','#frame','#close'])$(id).disabled=false;
 $('#expand').onclick=()=>{const expanded=app.firstElementChild.classList.toggle('cell-expanded');$('#expand').textContent=expanded?'Show pipeline':'Expand cell';$('#expand').setAttribute('aria-pressed',expanded);requestAnimationFrame(fitCell);};
 async function refresh(){
   const state=await api('/api/state'); mode=state.mode;
+  executorReady=state.executor_ready ?? Boolean(Object.keys(state.robot?.status || {}).length);
+  clearanceCheckAvailable=state.clearance_check_available===true;
+  $('#surface option[value="photo_board"]').hidden=mode!=='preview';
+  if(Array.isArray(state.profiles)){
+    const key=JSON.stringify(state.profiles);
+    if(key!==catalogKey){
+      const selected=$('#profile').value;
+      catalogKey=key;catalogProfiles=state.profiles;
+      $('#profile').replaceChildren(...catalogProfiles.map(profile=>{
+        const option=document.createElement('option');option.value=profile.id;
+        option.textContent=profile.id;
+        option.title=profile.unavailable_reason || profile.label;return option;
+      }));
+      if(catalogProfiles.some(p=>p.id===selected))$('#profile').value=selected;
+      $('#profile').hidden=!catalogProfiles.length;
+      if(initialized && selected && !catalogProfiles.some(p=>p.id===selected) && !active)
+        selectProfile({image:$('#marker').value});
+    }
+    const chosen=catalogProfiles.find(p=>p.id===$('#profile').value);
+    if(initialized && chosen && appliedProfileHash && chosen.sha256!==appliedProfileHash &&
+       !savingFlags && !changingSelection && !active && !busy && !homePending && !warmupPending && !executePending){
+      selectProfile({profile:chosen.id,image:$('#marker').value});
+    }
+  }
   updateOperation(state);
   const backend=state.robot?.status?.execution_backend;
   const modeLabel=backend==='joint_simulation' ? 'simulation · joint controller' : backend==='joint' ? `${mode} · joint controller` : mode;
@@ -553,28 +648,67 @@ async function refresh(){
 }
 function animate(now){if(previous&&playing&&robotPreview){draw(at+(now-previous)/1000*Number($('#rate').value));if(at>=robotPreview.duration_s){playing=false;$('#play').textContent='Play';controls();}}previous=now;requestAnimationFrame(animate);}
 requestAnimationFrame(animate);
-Promise.all([refresh(),loadModel().catch(error=>{message(`Robot model unavailable: ${error.message}`);})]).then(([state])=>{
-  initialized=true;
-  if(generation===0){
+// Selection changes are serialized; stale responses never unlock a previous job.
+function selectProfile(request, overrides={}) {
+  const revision=++selectionRevision;changingSelection=true;
+  const invalidated=invalidate();clearTimeout(prepareTimer);
+  selectionTask=selectionTask.catch(()=>{}).then(async()=>{
+    if(revision!==selectionRevision)return;
     try{
-      const query=new URLSearchParams(location.search);
-      const saved=query.has('size_mm') ? {
-        image:query.get('image'),surface:query.get('surface'),size_mm:Number(query.get('size_mm')),
-      } : (JSON.parse(localStorage.getItem('pen-selection')) || state.default_selection);
-      if(saved && [...$('#marker').options].some(option=>option.value===saved.image) &&
-          ['plane','sphere','cylinder'].includes(saved.surface) && Number.isFinite(saved.size_mm) && saved.size_mm>=1 && saved.size_mm<=100){
-        $('#marker').value=saved.image;$('#surface').value=saved.surface;$('#size').value=saved.size_mm;
-        if(query.has('size_mm'))history.replaceState(null,'',location.pathname+location.hash);
-      }
-    }catch{}
+      await invalidated;
+      const query=new URLSearchParams(Object.entries(request).filter(([,value])=>value));
+      const resolved=await api(`/api/selection?${query}`);
+      if(revision!==selectionRevision)return;
+      const selected={...resolved,...overrides};
+      if(selected.image && [...$('#marker').options].some(o=>o.value===selected.image))$('#marker').value=selected.image;
+      $('#profile').value=selected.profile;$('#surface').value=selected.surface;
+      $('#size').value=selected.size_mm;$('#fill').checked=selected.fill===true;
+      showSelectedImage(generation);controls();
+      await loadModel(selected.surface,selected.profile);
+      if(revision!==selectionRevision)return;
+      appliedProfileHash=resolved.profile_sha256;
+      changingSelection=false;
+      await invalidate();
+    }catch(error){
+      if(revision!==selectionRevision)return;
+      changingSelection=false;preparationWanted=false;clearTimeout(prepareTimer);
+      message(error.message);panelLoading('strokes',error.message,true);controls();
+    }
+  });
+  return selectionTask;
+}
+async function initialize(){
+  const state=await refresh();
+  let saved=null;const query=new URLSearchParams(location.search);
+  try{saved=(query.has('image') || query.has('profile')) ? {
+    image:query.get('image'),surface:query.get('surface'),profile:query.get('profile'),
+    ...(query.has('size_mm')?{size_mm:Number(query.get('size_mm'))}:{}),
+  } : JSON.parse(localStorage.getItem('pen-selection'));}catch{}
+  if(!saved || (saved.image && !state.inputs.includes(saved.image)) || (!saved.image && !saved.profile))
+    saved=state.default_selection || {};
+  if(catalogProfiles.length){
+    const request={image:saved.image};
+    if(saved.profile && catalogProfiles.some(p=>p.id===saved.profile))request.profile=saved.profile;
+    else if(saved.surface)request.surface=saved.surface;
+    const overrides={};
+    if(Number.isFinite(saved.size_mm) && saved.size_mm>=1 && saved.size_mm<=200)overrides.size_mm=saved.size_mm;
+    await selectProfile(request,overrides);
+  }else{
+    // Servers started before profile discovery retain their existing surface API.
+    if(saved.image && state.inputs.includes(saved.image))$('#marker').value=saved.image;
+    if(['plane','sphere','cylinder',...(mode==='preview'?['photo_board']:[])].includes(saved.surface))$('#surface').value=saved.surface;
+    if(Number.isFinite(saved.size_mm) && saved.size_mm>=1 && saved.size_mm<=200)$('#size').value=saved.size_mm;
+    await loadModel($('#surface').value);
+    restoreFill();if(!active && $('#marker').value)await invalidate();
   }
-  if(state.default_selection?.image===$('#marker').value &&
-      !Object.hasOwn(fillChoices,$('#marker').value)){
-    fillChoices[$('#marker').value]=state.default_selection.fill===true;
+  initialized=true;
+  if(query.get('clearance_check')==='1' && state.clearance_check_available){
+    clearTimeout(prepareTimer);preparationWanted=false;
+    await $('#load-clearance-check').onclick();
   }
-  restoreFill();
-  if(generation===0 && !active && $('#marker').value)invalidate().catch(e=>message(e.message));
-}).catch(e=>message(e.message));
+  if(query.size && query.get('clearance_check')!=='1')history.replaceState(null,'',location.pathname+location.hash);
+}
+initialize().catch(error=>message(error.message));
 let refreshPending=false;
 setInterval(async()=>{
   if(refreshPending)return;
