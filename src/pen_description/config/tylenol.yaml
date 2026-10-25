@@ -14,14 +14,14 @@ surface:
   frame_origin: cylinder_center
 T_world_surface:
   xyz_m:
-  - 0.5163795282960818
-  - -0.0023436336434715056
-  - 0.06104884030054029
+  - 0.5152306958889582
+  - -0.0021618740728405646
+  - 0.060558689201399785
   quaternion_xyzw:
-  - -0.006862966350695564
-  - -0.001513895153638914
-  - 0.999975067598278
-  - 0.0006870197613661251
+  - -0.006906717586439984
+  - -0.002979240781685004
+  - 0.9999709984577895
+  - -0.0011931554289339326
 T_world_base:
   xyz_m:
   - 0.0
@@ -34,14 +34,14 @@ T_world_base:
   - 1.0
 T_base_jig:
   xyz_m:
-  - 0.5103754504291983
-  - -0.0021150444990697707
-  - -0.01404006240484204
+  - 0.5092325376621166
+  - -0.0017378550527961242
+  - -0.014529837347489999
   quaternion_xyzw:
-  - -0.003782364516488401
-  - -0.005923335574775453
-  - 0.7066033549841475
-  - 0.7075749476482897
+  - -0.0027771454815951214
+  - -0.006990428200629075
+  - 0.7079299622941944
+  - 0.7062425857045768
 T_flange_holder:
   xyz_m:
   - -0.011
@@ -115,7 +115,7 @@ tool_envelope:
   length_m: 0.3026348387252821
 routes:
   approach:
-    qualified: true
+    qualified: false
     start_positions:
     - -0.11538061499595642
     - 0.1688392013311386
@@ -2969,6 +2969,8 @@ routes:
       - -0.09869786567807631
       - 0.8397170991784912
       - -1.2685367541456556
+    invalidation_reason: Jig pose changed; this recorded route needs regeneration
+      or clearance revalidation.
   cartesian_entry_pose:
     xyz_m:
     - 0.5186167754998512
@@ -2990,7 +2992,7 @@ routes:
     - 3.46890851256727e-19
     - -4.123606019080617e-19
   park:
-    qualified: true
+    qualified: false
     start_positions:
     - -0.03162487937580775
     - -0.31927282070270857
@@ -6117,15 +6119,17 @@ routes:
     minimum_bottle_tool_clearance_m: 0.012402785860345183
     minimum_jig_tool_clearance_m: 0.041958157012609146
     source: Checked transition to the previously executed air-pass return route.
+    invalidation_reason: Jig pose changed; this recorded route needs regeneration
+      or clearance revalidation.
 notes: Uses operator-accepted CAD dimensions and position. Real 10 mm air pass completed
   with extrusion off; operator confirmed centered and visibly clear. Printing uses
   2.0 mm nominal tip clearance.
 qualification:
   rt: true
-  clearance: true
+  clearance: false
   pen: true
   tool: true
-  clearance_basis: Validated 10 mm air trajectory and joint routes; operator-confirmed
+  previous_clearance_basis: Validated 10 mm air trajectory and joint routes; operator-confirmed
     arm/holder/cable clearance.
 camera:
   enabled: false
@@ -6135,8 +6139,8 @@ camera:
     quaternion_xyzw: null
   note: 'TBD: measure camera mounting; video streaming does not establish this transform.'
 measurements:
-  jig_registration_note: Replaces prior approximate far-edge placement; no CAD scale
-    change.
+  jig_registration_note: New four-divot fit; original workpiece-relative transforms
+    retained; clearance revalidation pending.
   original_pen_tip_components_m:
   - 0.224709
   - 0.002292
@@ -6149,7 +6153,7 @@ measurements:
       value.
     press_angle_deg: 135
   jig_four_point_registration:
-    recorded_utc: '2026-10-24T11:32:51.212442+00:00'
+    recorded_utc: '2026-10-25T04:51:13.187125+00:00'
     labels:
     - left_bottom
     - bottom_right
@@ -6169,30 +6173,30 @@ measurements:
       - -0.05000000074505806
       - 0.07374999672174454
     robot_base_points_m:
-    - - 0.4597175102023288
-      - 0.048395993448609356
-      - 0.059025619932756485
-    - - 0.4590754886613254
-      - -0.05318102367660666
-      - 0.0590073629248527
-    - - 0.5592645074829625
-      - -0.05269861072390788
-      - 0.060087140875390604
-    - - 0.5593946327135418
-      - 0.048133068970300535
-      - 0.06069047214636203
+    - - 0.45769356058246313
+      - 0.048018276635056735
+      - 0.05866065538905382
+    - - 0.4577888846002095
+      - -0.052355258321279234
+      - 0.058369278054930473
+    - - 0.5591413563665321
+      - -0.05284782960832447
+      - 0.059458672530913054
+    - - 0.5582336013559366
+      - 0.04847082801336169
+      - 0.060358650135766745
     residual_mm:
-    - 0.7355599569556689
-    - 0.9513841543507878
-    - 0.32879219216588573
-    - 0.5619633574216998
+    - 0.5361624838237948
+    - 0.5738282383683436
+    - 1.139716946084038
+    - 0.5749533908608813
     mesh_sha256: c577f52b159687ea5f6f087bc48f9e7a2cb2ca4d1d186eb17d94fef2f0bb43c0
     evidence:
-    - /home/ubuntu/robotics_setup/validation/taught-points/20261024T112755Z-left-bottom.json
-    - /home/ubuntu/robotics_setup/validation/taught-points/20261024T112845Z-bottom-right.json
-    - /home/ubuntu/robotics_setup/validation/taught-points/20261024T112951Z-top-right.json
-    - /home/ubuntu/robotics_setup/validation/taught-points/20261024T113211Z-top-left.json
-    contact_datum: groove bottom
+    - /home/ubuntu/robotics_setup/validation/taught-points/20261025T045032Z-left-bottom.json
+    - /home/ubuntu/robotics_setup/validation/taught-points/20261025T045057Z-bottom-right.json
+    - /home/ubuntu/robotics_setup/validation/taught-points/20261025T044908Z-top-right.json
+    - /home/ubuntu/robotics_setup/validation/taught-points/20261025T044953Z-top-left.json
+    contact_datum: CAD divot bottom
 T_jig_surface:
   xyz_m:
   - 7.592862010538095e-06
@@ -6218,12 +6222,12 @@ registration:
     source: ~/robotics_setup/validation/pen/tool-readback.json
     method: Read-only RDK Tool.name() and Tool.params(); no actuation or tool changes.
   jig_calibrated: true
-  jig_source: Four user-taught pen-tip contacts fitted rigidly to CAD dimple bottoms
+  jig_source: Four new user-taught pen-tip contacts fitted rigidly to CAD divot bottoms
     at jig Z=73.75 mm
-  jig_fit_report: /home/ubuntu/robotics_setup/validation/jig-registration/fit.json
-  jig_fit_rms_mm: 0.6837556910440138
-  jig_fit_max_error_mm: 0.9513841543507878
-  motion_routes_valid: true
+  jig_fit_report: /home/ubuntu/robotics_setup/validation/jig-recalibration-20261024/fit.json
+  jig_fit_rms_mm: 0.7493789386990017
+  jig_fit_max_error_mm: 1.139716946084038
+  motion_routes_valid: false
   calibration_basis: Operator-approved nominal CAD placement on four-groove-registered
     jig; no contact probing performed.
   air_pass_evidence: /home/ubuntu/robotics_ws/assets/outputs/tylenol-air-20261024T192943Z/execution-result.json
@@ -6231,6 +6235,9 @@ registration:
   holder_seating_correction_axis: robot base +Z
   holder_seating_correction_source: User confirmed holder seating is the same 2.5
     mm correction, not an additional height offset.
+  motion_route_recheck: Pending after jig refit; regenerate and review paths using
+    the current jig and workpiece transforms.
+  jig_recalibration_utc: '2026-10-25T04:51:13.187125+00:00'
 acceptance_scope: Operator-authorized Tylenol drawing using accepted CAD placement
   after successful centered real air pass.
 drawing:

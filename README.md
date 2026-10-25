@@ -27,6 +27,12 @@ For extraction and preview without a controller manager, use `./scripts/start-pe
 - `assets/meshes`: canonical STLs and provenance; `assets/inputs`: source images.
 - `assets/outputs/<job>`: drawing, toolpath, exact execution job, report, and result.
 
+Saved run snapshots are published through Git LFS in
+[`assets/archives`](assets/archives/README.md). That directory includes restore
+instructions. Source files, configuration profiles, launch scripts, dependency
+requirements, documentation, and reusable assets are tracked directly; local
+builds, installed packages, virtual environments, and caches are excluded.
+
 An input image can have a sibling `<image filename>.strokes.json` file to retain
 explicit marks that the feature simplifier would otherwise remove. Its version-1
 object contains `image_sha256` and `strokes_px` (lists of pixel-coordinate

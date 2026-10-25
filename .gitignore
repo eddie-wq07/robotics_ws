@@ -3,12 +3,15 @@
 !/.gitignore
 !/.gitattributes
 !/README.md
+!/requirements-pen.txt
+!/scripts/
 !/docs/
 !/assets/
 !/src/
 
-# Generated drawing runs and preview caches stay local.
+# Working drawing runs stay local; snapshots are in assets/archives/.
 /assets/outputs/
+**/.preview_cache/
 
 # Preserve nested repositories locally; never commit their Git metadata.
 /src/**/.git
@@ -27,6 +30,10 @@
 **/.venv/
 **/.venv-*/
 /src/flexiv_rdk/thirdparty/cloned/
+
+# Bundled browser runtime is a dependency, not a local build product.
+!/src/pen_bringup/web/vendor/three/build/
+!/src/pen_bringup/web/vendor/three/build/**
 
 # Local firmware configuration and machine/secret files.
 /src/pen_servo/firmware/pen_servo_esp32/sdkconfig

@@ -1,6 +1,3 @@
-# Restored real-robot setup at the 1000 Hz / 5 mm tracking-limit request.
-# Metres, seconds, radians. XYZ stiffness is N/m; rotation uses robot nominal values.
-# This is the active profile used by the Mocha driver, executor, and pen UI launchers.
 schema_version: 1
 profile_id: sphere-factory-joint-apple-extrusion
 calibrated: true
@@ -14,14 +11,14 @@ surface:
   frame_origin: sphere_center
 T_world_surface:
   xyz_m:
-  - 0.5093630347200369
-  - -0.002337643005295879
-  - 0.059702652247772076
+  - 0.5082143506810259
+  - -0.002178495839883208
+  - 0.059211817305550515
   quaternion_xyzw:
-  - -0.006862966350695565
-  - -0.0015138951536389138
-  - 0.999975067598278
-  - 0.0006870197613660142
+  - -0.006906717586439987
+  - -0.0029792407816850047
+  - 0.9999709984577895
+  - -0.0011931554289340439
 T_world_base:
   xyz_m:
   - 0.0
@@ -34,14 +31,14 @@ T_world_base:
   - 1.0
 T_base_jig:
   xyz_m:
-  - 0.5103754504291983
-  - -0.0021150444990697707
-  - -0.01404006240484204
+  - 0.5092325376621166
+  - -0.0017378550527961242
+  - -0.014529837347489999
   quaternion_xyzw:
-  - -0.003782364516488401
-  - -0.005923335574775453
-  - 0.7066033549841475
-  - 0.7075749476482897
+  - -0.0027771454815951214
+  - -0.006990428200629075
+  - 0.7079299622941944
+  - 0.7062425857045768
 T_flange_holder:
   xyz_m:
   - -0.011
@@ -115,7 +112,7 @@ tool_envelope:
   length_m: 0.3026348387252821
 routes:
   approach:
-    qualified: true
+    qualified: false
     offline_checked: true
     start_positions:
     - -0.26134800910949707
@@ -2287,12 +2284,14 @@ routes:
       - 0.8022245394030098
       - -1.1894662691774567
     minimum_tool_sphere_clearance_m: 0.0015
-    validation: URDF joint limits and tool capsule versus CAD sphere checked; operator approved entire
-      arm, holder and cable path. First physical replay remains pending.
+    validation: URDF joint limits and tool capsule versus CAD sphere checked; operator
+      approved entire arm, holder and cable path. First physical replay remains pending.
     operator_path_clear_confirmed: true
     physical_replay_verified: false
+    invalidation_reason: Jig pose changed; this recorded route needs regeneration
+      or clearance revalidation.
   home_connector:
-    checked_joint_home: true
+    checked_joint_home: false
     start_positions:
     - -0.11538001149892807
     - 0.1688380092382431
@@ -3679,9 +3678,12 @@ routes:
       - -0.0
     minimum_tool_plane_clearance_m: 0.08653311692787431
     departure_floor_m: null
-    validation: Joint limits and sampled tool capsule versus registered surface; complete arm collision
-      check not performed.
-    source: Recorded Home to approved sphere approach start; tool capsule checked against registered sphere.
+    validation: Joint limits and sampled tool capsule versus registered surface; complete
+      arm collision check not performed.
+    source: Recorded Home to approved sphere approach start; tool capsule checked
+      against registered sphere.
+    invalidation_reason: Jig pose changed; this recorded route needs regeneration
+      or clearance revalidation.
   cartesian_entry_pose:
     xyz_m:
     - 0.5079382585910668
@@ -3704,8 +3706,8 @@ routes:
     - 0.8022223114967346
     - -1.1894638538360596
     model_tcp_error_m: 0.004376111031837197
-    note: Measured entry preserves 3 mm start tolerance; transition then aligns to the ideal sphere path.
-      Return route remains tied to the final drawing hover.
+    note: Measured entry preserves 3 mm start tolerance; transition then aligns to
+      the ideal sphere path. Return route remains tied to the final drawing hover.
   cartesian_park_pose:
     xyz_m:
     - 0.37179335951805115
@@ -3716,12 +3718,13 @@ routes:
     - 0.9904474020004272
     - -0.012806838378310204
     - -0.033795829862356186
-notes: 'Operator approved normal drawing retry after being offered an extrusion-off clearance check. Sphere:
-  6 mm/s drawing, 15 mm/s travel, 3 mm nominal stand-off. Uses measured RDK hover and recorded Cartesian
-  park. Prior contact means physical clearance remains to be verified during supervised testing.'
+notes: 'Operator approved normal drawing retry after being offered an extrusion-off
+  clearance check. Sphere: 6 mm/s drawing, 15 mm/s travel, 3 mm nominal stand-off.
+  Uses measured RDK hover and recorded Cartesian park. Prior contact means physical
+  clearance remains to be verified during supervised testing.'
 qualification:
   rt: true
-  clearance: true
+  clearance: false
   pen: true
   tool: true
 camera:
@@ -3732,19 +3735,21 @@ camera:
     quaternion_xyzw: null
   note: 'TBD: measure camera mounting; video streaming does not establish this transform.'
 measurements:
-  jig_registration_note: Replaces prior approximate far-edge placement; no CAD scale change.
+  jig_registration_note: New four-divot fit; original workpiece-relative transforms
+    retained; clearance revalidation pending.
   original_pen_tip_components_m:
   - 0.224709
   - 0.002292
   - -0.001993
-  original_pen_tip_note: User measurements retained for reference; axis/sign convention was not registered
-    to the URDF flange. Use the CAD-registered TCP below for control.
+  original_pen_tip_note: User measurements retained for reference; axis/sign convention
+    was not registered to the URDF flange. Use the CAD-registered TCP below for control.
   extrusion_start_delay:
     seconds: 1.0
-    source: User observed filament emerging about 1 second after press; provisional value.
+    source: User observed filament emerging about 1 second after press; provisional
+      value.
     press_angle_deg: 135
   jig_four_point_registration:
-    recorded_utc: '2026-10-24T11:32:51.212442+00:00'
+    recorded_utc: '2026-10-25T04:51:13.187125+00:00'
     labels:
     - left_bottom
     - bottom_right
@@ -3764,30 +3769,30 @@ measurements:
       - -0.05000000074505806
       - 0.07374999672174454
     robot_base_points_m:
-    - - 0.4597175102023288
-      - 0.048395993448609356
-      - 0.059025619932756485
-    - - 0.4590754886613254
-      - -0.05318102367660666
-      - 0.0590073629248527
-    - - 0.5592645074829625
-      - -0.05269861072390788
-      - 0.060087140875390604
-    - - 0.5593946327135418
-      - 0.048133068970300535
-      - 0.06069047214636203
+    - - 0.45769356058246313
+      - 0.048018276635056735
+      - 0.05866065538905382
+    - - 0.4577888846002095
+      - -0.052355258321279234
+      - 0.058369278054930473
+    - - 0.5591413563665321
+      - -0.05284782960832447
+      - 0.059458672530913054
+    - - 0.5582336013559366
+      - 0.04847082801336169
+      - 0.060358650135766745
     residual_mm:
-    - 0.7355599569556689
-    - 0.9513841543507878
-    - 0.32879219216588573
-    - 0.5619633574216998
+    - 0.5361624838237948
+    - 0.5738282383683436
+    - 1.139716946084038
+    - 0.5749533908608813
     mesh_sha256: c577f52b159687ea5f6f087bc48f9e7a2cb2ca4d1d186eb17d94fef2f0bb43c0
     evidence:
-    - /home/ubuntu/robotics_setup/validation/taught-points/20261024T112755Z-left-bottom.json
-    - /home/ubuntu/robotics_setup/validation/taught-points/20261024T112845Z-bottom-right.json
-    - /home/ubuntu/robotics_setup/validation/taught-points/20261024T112951Z-top-right.json
-    - /home/ubuntu/robotics_setup/validation/taught-points/20261024T113211Z-top-left.json
-    contact_datum: groove bottom
+    - /home/ubuntu/robotics_setup/validation/taught-points/20261025T045032Z-left-bottom.json
+    - /home/ubuntu/robotics_setup/validation/taught-points/20261025T045057Z-bottom-right.json
+    - /home/ubuntu/robotics_setup/validation/taught-points/20261025T044908Z-top-right.json
+    - /home/ubuntu/robotics_setup/validation/taught-points/20261025T044953Z-top-left.json
+    contact_datum: CAD divot bottom
 T_jig_surface:
   xyz_m:
   - 0.0
@@ -3799,11 +3804,12 @@ T_jig_surface:
   - 0.7071067811865476
   - 0.7071067811865476
 registration:
-  tcp_source: Combined pen/holder CAD registered to URDF flange by four mounting holes; TCP orientation
-    matches flange axes.
-  tcp_status: Active pen tool TCP and payload read back from robot; physical fit and runtime verification
-    still required.
-  surface_source: Measured jig transform composed with the CAD flat drawing face at jig Z=75 mm
+  tcp_source: Combined pen/holder CAD registered to URDF flange by four mounting holes;
+    TCP orientation matches flange axes.
+  tcp_status: Active pen tool TCP and payload read back from robot; physical fit and
+    runtime verification still required.
+  surface_source: Measured jig transform composed with the CAD flat drawing face at
+    jig Z=75 mm
   physical_fit_verified: true
   tool_readback:
     read_utc: '2026-10-24T09:26:56.244036+00:00'
@@ -3812,21 +3818,23 @@ registration:
     source: ~/robotics_setup/validation/pen/tool-readback.json
     method: Read-only RDK Tool.name() and Tool.params(); no actuation or tool changes.
   jig_calibrated: true
-  jig_source: Four user-taught pen-tip contacts fitted rigidly to CAD dimple bottoms at jig Z=73.75 mm
-  jig_fit_report: /home/ubuntu/robotics_setup/validation/jig-registration/fit.json
-  jig_fit_rms_mm: 0.6837556910440138
-  jig_fit_max_error_mm: 0.9513841543507878
-  motion_routes_valid: true
-  motion_route_recheck: Existing measured and physically replayed routes retained; infinite-plane tip
-    and capsule checks passed against new groove fit. No change to route joint positions.
-acceptance_scope: Operator-approved sphere setup; offline route checks passed. First physical spherical
-  drawing remains pending.
+  jig_source: Four new user-taught pen-tip contacts fitted rigidly to CAD divot bottoms
+    at jig Z=73.75 mm
+  jig_fit_report: /home/ubuntu/robotics_setup/validation/jig-recalibration-20261024/fit.json
+  jig_fit_rms_mm: 0.7493789386990017
+  jig_fit_max_error_mm: 1.139716946084038
+  motion_routes_valid: false
+  motion_route_recheck: Pending after jig refit; regenerate and review paths using
+    the current jig and workpiece transforms.
+  jig_recalibration_utc: '2026-10-25T04:51:13.187125+00:00'
+acceptance_scope: Operator-approved sphere setup; offline route checks passed. First
+  physical spherical drawing remains pending.
 drawing:
   sample_rate_hz: 1000
-  draw_speed_scale: 1.75  # 4 mm/s x 1.75 = 7 mm/s tracing
+  draw_speed_scale: 1.75
   non_extruding_speed_scale: 3.0
   speed_m_s: 0.004
-  travel_speed_m_s: 0.005  # 5 mm/s x 3 = 15 mm/s non-extruding travel
+  travel_speed_m_s: 0.005
   approach_speed_scale: 1.0
 home:
   controller: rizon_arm_controller

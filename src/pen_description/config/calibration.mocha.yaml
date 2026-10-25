@@ -14,14 +14,14 @@ surface:
   frame_origin: plane_drawing_face
 T_world_surface:
   xyz_m:
-  - 0.509345875131746
-  - -0.002341415861333601
-  - 0.06095252876730792
+  - 0.5081970932745667
+  - -0.0021859643277999403
+  - 0.060461675858991884
   quaternion_xyzw:
-  - -0.0068629663506955055
-  - -0.001513895153638917
-  - 0.999975067598278
-  - 0.0006870197613659503
+  - -0.0069067175864399605
+  - -0.0029792407816849943
+  - 0.9999709984577895
+  - -0.0011931554289340933
 T_world_base:
   xyz_m:
   - 0.0
@@ -34,14 +34,14 @@ T_world_base:
   - 1.0
 T_base_jig:
   xyz_m:
-  - 0.5103754504291983
-  - -0.0021150444990697707
-  - -0.01404006240484204
+  - 0.5092325376621166
+  - -0.0017378550527961242
+  - -0.014529837347489999
   quaternion_xyzw:
-  - -0.003782364516488401
-  - -0.005923335574775453
-  - 0.7066033549841475
-  - 0.7075749476482897
+  - -0.0027771454815951214
+  - -0.006990428200629075
+  - 0.7079299622941944
+  - 0.7062425857045768
 T_flange_holder:
   xyz_m:
   - -0.011
@@ -4471,6 +4471,9 @@ routes:
       arm collision check not performed.
     source: Recorded Home to existing qualified approach start; offline geometry check
       only
+    qualified: false
+    invalidation_reason: Jig pose updated from four measured groove contacts; route
+      must be rechecked.
 notes: Pen-tip geometry follows the registered CAD. RDK TCP and payload match the
   active pen tool readback, retaining its exact values. Original user measurement
   components remain reference data. World equals robot base; the drawing face follows
@@ -4490,8 +4493,8 @@ camera:
     quaternion_xyzw: null
   note: 'TBD: measure camera mounting; video streaming does not establish this transform.'
 measurements:
-  jig_registration_note: Replaces prior approximate far-edge placement; no CAD scale
-    change.
+  jig_registration_note: Refitted from four new user-taught divot contacts; no CAD
+    scale change.
   original_pen_tip_components_m:
   - 0.224709
   - 0.002292
@@ -4504,7 +4507,7 @@ measurements:
       value.
     press_angle_deg: 135
   jig_four_point_registration:
-    recorded_utc: '2026-10-24T11:32:51.212442+00:00'
+    recorded_utc: '2026-10-25T04:51:13.187125+00:00'
     labels:
     - left_bottom
     - bottom_right
@@ -4524,29 +4527,29 @@ measurements:
       - -0.05000000074505806
       - 0.07374999672174454
     robot_base_points_m:
-    - - 0.4597175102023288
-      - 0.048395993448609356
-      - 0.059025619932756485
-    - - 0.4590754886613254
-      - -0.05318102367660666
-      - 0.0590073629248527
-    - - 0.5592645074829625
-      - -0.05269861072390788
-      - 0.060087140875390604
-    - - 0.5593946327135418
-      - 0.048133068970300535
-      - 0.06069047214636203
+    - - 0.45769356058246313
+      - 0.048018276635056735
+      - 0.05866065538905382
+    - - 0.4577888846002095
+      - -0.052355258321279234
+      - 0.058369278054930473
+    - - 0.5591413563665321
+      - -0.05284782960832447
+      - 0.059458672530913054
+    - - 0.5582336013559366
+      - 0.04847082801336169
+      - 0.060358650135766745
     residual_mm:
-    - 0.7355599569556689
-    - 0.9513841543507878
-    - 0.32879219216588573
-    - 0.5619633574216998
+    - 0.5361624838237948
+    - 0.5738282383683436
+    - 1.139716946084038
+    - 0.5749533908608813
     mesh_sha256: c577f52b159687ea5f6f087bc48f9e7a2cb2ca4d1d186eb17d94fef2f0bb43c0
     evidence:
-    - /home/ubuntu/robotics_setup/validation/taught-points/20261024T112755Z-left-bottom.json
-    - /home/ubuntu/robotics_setup/validation/taught-points/20261024T112845Z-bottom-right.json
-    - /home/ubuntu/robotics_setup/validation/taught-points/20261024T112951Z-top-right.json
-    - /home/ubuntu/robotics_setup/validation/taught-points/20261024T113211Z-top-left.json
+    - /home/ubuntu/robotics_setup/validation/taught-points/20261025T045032Z-left-bottom.json
+    - /home/ubuntu/robotics_setup/validation/taught-points/20261025T045057Z-bottom-right.json
+    - /home/ubuntu/robotics_setup/validation/taught-points/20261025T044908Z-top-right.json
+    - /home/ubuntu/robotics_setup/validation/taught-points/20261025T044953Z-top-left.json
     contact_datum: groove bottom
 T_jig_surface:
   xyz_m:
@@ -4575,9 +4578,9 @@ registration:
   jig_calibrated: true
   jig_source: Four user-taught pen-tip contacts fitted rigidly to CAD dimple bottoms
     at jig Z=73.75 mm
-  jig_fit_report: /home/ubuntu/robotics_setup/validation/jig-registration/fit.json
-  jig_fit_rms_mm: 0.6837556910440138
-  jig_fit_max_error_mm: 0.9513841543507878
+  jig_fit_report: /home/ubuntu/robotics_setup/validation/jig-recalibration-20261024/fit.json
+  jig_fit_rms_mm: 0.7493789386990017
+  jig_fit_max_error_mm: 1.139716946084038
   motion_routes_valid: false
 drawing:
   sample_rate_hz: 1000
