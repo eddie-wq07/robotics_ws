@@ -17,11 +17,11 @@ after changing the canonical assets.
 
 ## Calibration
 
-`config/tylenol.yaml` stores the camera-assisted bottle/cradle assembly and the
-36 mm `sun.png` selection. Run `scripts/start-tylenol-preview.sh` from the workspace
+`config/tylenol_sun.yaml` and `config/tylenol_moon.yaml` store the shared
+bottle/cradle calibration and independent 36 mm sun/moon selections. Run `scripts/start-tylenol-preview.sh` from the workspace
 to open its dedicated preview at port 8095. The holder is registered to the jig's
-CAD hole pattern; bottle seating and clocking remain inferred. This profile is
-preview-only, with physical execution and inherited sphere routes disabled.
+CAD hole pattern; bottle seating and clocking remain inferred. The real profiles retain the operator-accepted placement and reviewed approach/Home
+routes; see the Tylenol asset README for qualification limits.
 
 `config/sphere.yaml` is the complete saved real-robot configuration
 restored at the 1000 Hz / 5 mm tracking-limit checkpoint. It includes all measured

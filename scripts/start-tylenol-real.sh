@@ -16,7 +16,7 @@ from pathlib import Path
 import sys
 import yaml
 root = Path(sys.argv[1])
-profile = root / 'src/pen_description/config/tylenol.yaml'
+profile = root / 'src/pen_description/config/tylenol_sun.yaml'
 config = yaml.safe_load(profile.read_text())
 args = [sys.executable, '-m', 'pen_bringup.web_bridge', '--root', str(root),
         '--mode', 'real', '--profile', str(profile), '--port', sys.argv[2]]

@@ -226,7 +226,7 @@ class Workflow:
             profile_data = yaml.safe_load(selected_profile.read_text()) if selected_profile else {}
             surface_spec = profile_data.get('surface', {})
             if surface_spec.get('type') != 'cylinder':
-                raise WorkflowError('Start the Tylenol preview with config/tylenol.yaml')
+                raise WorkflowError('Start the Tylenol preview with config/tylenol_sun.yaml')
             if planning_mode == 'real' and (profile_data.get('calibrated') is not True or
                                         profile_data.get('fake_only', True)):
                 raise WorkflowError('Tylenol requires an approved real calibration profile')

@@ -65,6 +65,11 @@ rejected until command and feedback frame conversion is implemented together.
 Preview/fake profiles can still represent other frame relationships.
 
 Drawing speed is `speed_m_s`; non-extruding speed is `travel_speed_m_s`.
+`drawing.local_speed_limits: true` uses a speed profile along each continuous
+stroke, slowing near tight curvature rather than applying its worst bend's speed
+to the whole stroke. Starts, stops and pen recycle boundaries still stop, and the
+existing sampled motion checks remain enforced. It defaults to false and is
+enabled for the Tylenol moon profile only.
 Active profiles set `drawing.sample_rate_hz: 1000` to match the 1,000 Hz Cartesian target publisher.
 The rounded stroke path uses a smooth cubic curve between its samples, so
 1,000 Hz sampling does not introduce velocity corners at the old polyline joins.

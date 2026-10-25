@@ -60,7 +60,7 @@ first import is retained outside the repository under
 
 `holder-source.stl` is the original `tylenol_holder2.stl` from USB;
 `holder.stl` is its millimetre-to-metre conversion. `assembly.json` records
-hashes and the transforms also stored in `../../config/tylenol.yaml`.
+hashes and the transforms also stored in `../../config/tylenol_sun.yaml`.
 The holder's four 3.5 mm holes are at CAD X=±46 mm, Z=7.9/21.9 mm.
 After a 90-degree X rotation and translation `[0,14.9,72.5]` mm,
 they align with the jig pattern at X=±46 mm, Y=±7 mm. The inner cradle
@@ -80,6 +80,21 @@ The profile selects `sun.png`, 36 mm, and the **Tylenol + holder** dropdown.
 `sun.strokes.json` preserves both discs and all eight rays; its active copy is
 `assets/inputs/sun.png.strokes.json`. Flat and 80 mm sphere use their own saved
 profiles when selected in this preview server.
+
+`moon.png` is an alternative 36 mm crescent outline on the same bottle surface.
+Selecting `sun.png` loads `tylenol_sun.yaml`; selecting `moon.png` loads
+`tylenol_moon.yaml`. Both retain the same calibration, approach and Home route.
+The sun keeps 15 mm/s drawing, 45 mm/s travel, 1.9 mm clearance and a 35-degree
+angle limit. The moon requests 4 mm/s drawing, 45 mm/s travel and 2 mm clearance,
+with the same angle limit. Its `drawing.local_speed_limits: true` permits faster
+motion along smooth arcs while slowing for tight bends, within the existing
+velocity, acceleration and orientation checks. The image pipeline extracts one
+closed centreline with no fill; its shape is unchanged. The sun remains the
+launcher default.
+The moon's checked surface path takes about 53 seconds; the approach and Home
+return add time. Local speed limits still slow tight bends more than open curves.
+The PNG source and required attribution are recorded in
+[`moon-source.md`](moon-source.md).
 
 The planner wraps the image around a horizontal cylinder and checks sampled
 chords, the conservative tool capsule, velocity/acceleration and the configured
@@ -111,7 +126,7 @@ result initiates robot motion or replaces the executor's live checks.
 
 Run `scripts/start-tylenol-real.sh` and open <http://127.0.0.1:8095/>. This connects
 to the existing ROS executor; it does not start the driver or command motion.
-The selected 36 mm sun uses 15 mm/s drawing, 45 mm/s travel and 1.7 mm nominal
+The selected 36 mm sun uses 15 mm/s drawing, 45 mm/s travel and 1.9 mm nominal
 tip clearance. Execute starts the extrusion-enabled drawing after final checks.
 
 An optional `prepared_trajectory` directory in a profile can supply an explicitly

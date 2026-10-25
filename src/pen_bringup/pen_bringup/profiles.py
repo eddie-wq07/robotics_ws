@@ -153,7 +153,7 @@ class ProfileCatalog:
         if fallback in candidates:
             return fallback
         # A requested surface wins over a photo association, e.g. apple on a plane.
-        canonical = {'plane': 'flat.yaml', 'sphere': 'sphere.yaml', 'cylinder': 'tylenol.yaml', 'photo_board': 'photo_board.yaml'}
+        canonical = {'plane': 'flat.yaml', 'sphere': 'sphere.yaml', 'cylinder': 'tylenol_sun.yaml', 'photo_board': 'photo_board.yaml'}
         default = records.get(canonical.get(request.get('surface')))
         if default and default in candidates:
             return default

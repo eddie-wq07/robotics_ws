@@ -13,7 +13,8 @@ selection:
 ```
 
 Existing profiles map `eddiemom.png` to `photo_board.yaml`, `jackolantern.png` to
-`sphere.yaml`, `venue_map_marked.png` to `flat.yaml`, and `sun.png` to `tylenol.yaml`.
+`sphere.yaml`, `venue_map_marked.png` to `flat.yaml`, `sun.png` to `tylenol_sun.yaml`,
+and `moon.png` to `tylenol_moon.yaml`.
 Use the YAML dropdown to choose another profile explicitly. Selecting a profile
 loads its default image, surface, size and fill; selecting a photo loads its
 matching profile. An unmatched upload keeps the chosen profile. If a photo is

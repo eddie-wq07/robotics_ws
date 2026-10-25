@@ -1,5 +1,5 @@
 schema_version: 1
-profile_id: tylenol-sun-operator-registered-real
+profile_id: tylenol-moon-operator-registered-real
 calibrated: true
 fake_only: false
 synthetic: false
@@ -103,7 +103,7 @@ pen:
   end_extrusion_dwell_s: 0.5
   max_press_s: 600.0
   press_angle_deg: 140
-  stand_off_m: 0.0017
+  stand_off_m: 0.002
   recycle_interval_s: 15.0
   recycle_pause_s: 2.0
   recycle_press_delay_s: 0.5
@@ -6243,11 +6243,12 @@ registration:
 acceptance_scope: Operator-authorized Tylenol drawing using accepted CAD placement
   after successful centered real air pass.
 drawing:
+  local_speed_limits: true
   sample_rate_hz: 1000
   max_surface_normal_angle_deg: 35.0
   draw_speed_scale: 1.0
   non_extruding_speed_scale: 1.0
-  speed_m_s: 0.015
+  speed_m_s: 0.004
   travel_speed_m_s: 0.045
   approach_speed_scale: 1.0
 home:
@@ -6291,7 +6292,8 @@ cartesian_control:
   rotational_stiffness: nominal
   damping_ratio: 0.7
 selection:
-  image: sun.png
+  image: moon.png
+  images: [moon.png]
   surface: cylinder
   size_mm: 36.0
   fill: false

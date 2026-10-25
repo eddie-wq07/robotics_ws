@@ -441,6 +441,34 @@ def test_invalid_profile_surface_normal_angle_rejected(limit):
         compile_drawing(drawing(),surface='sphere',profile=profile)
 
 
+def test_local_speed_limits_preserve_path_and_motion_checks():
+    profile=synthetic_profile('plane')
+    profile['drawing']={'speed_m_s':.04}
+    shape=drawing([[-.008,-.004],[.008,-.004],[.008,.004],[-.008,.004],[-.008,-.004]])
+    slow,slow_path,_=compile_drawing(shape,surface='plane',profile=profile,
+                             settings={'continuous_strokes':True})
+    profile['drawing']['local_speed_limits']=True
+    fast,fast_path,_=compile_drawing(shape,surface='plane',profile=profile,
+                             settings={'continuous_strokes':True})
+    assert fast['duration_s']<slow['duration_s']*.7
+    assert fast['validation']['max_draw_speed_m_s']>slow['validation']['max_draw_speed_m_s']
+    assert fast['validation']['max_speed_m_s']<=.04*1.02
+    assert fast['validation']['max_acceleration_m_s2']<=.1*1.15
+    assert fast['samples'][-1]['extrude'] is False
+    assert fast['samples'][0]['pose']==pytest.approx(slow['samples'][0]['pose'])
+    assert fast['samples'][-1]['pose']==pytest.approx(slow['samples'][-1]['pose'])
+    from shapely import LineString
+    assert LineString(fast_path['strokes'][0]['points_m']).hausdorff_distance(
+        LineString(slow_path['strokes'][0]['points_m']))<.00005
+
+
+@pytest.mark.parametrize('flag',[1,'true',None])
+def test_local_speed_limits_requires_boolean(flag):
+    profile=synthetic_profile('plane');profile['drawing']={'local_speed_limits':flag}
+    with pytest.raises(ValueError,match='local_speed_limits'):
+        compile_drawing(drawing(),surface='plane',profile=profile)
+
+
 def test_maximum_press_is_enforced():
     profile=synthetic_profile();profile['pen']['max_press_s']=.1
     with pytest.raises(ValueError,match='maximum continuous'):compile_drawing(drawing(),profile=profile)
@@ -448,11 +476,13 @@ def test_maximum_press_is_enforced():
 
 @pytest.mark.parametrize('points', [[[-.03,0],[.03,0]],
     [[-.03,0],[-.01,0],[.01,0],[.03,0]]])
-@pytest.mark.parametrize('continuous',[False,True])
-def test_long_stroke_pauses_stationary_for_two_seconds_then_resumes(points,continuous):
+@pytest.mark.parametrize(('continuous','local'),[(False,False),(True,False),(True,True)])
+def test_long_stroke_pauses_stationary_for_two_seconds_then_resumes(points,continuous,local):
     source={'kind':'pen_drawing','schema_version':1,'units':'m',
             'strokes':[{'id':'long','points_m':points}]}
-    job,path,_=compile_drawing(source,surface='plane',settings={'speed_m_s':.002,'continuous_strokes':continuous})
+    profile=synthetic_profile('plane');profile['drawing']={'local_speed_limits':local}
+    job,path,_=compile_drawing(source,surface='plane',profile=profile,
+                             settings={'speed_m_s':.002,'continuous_strokes':continuous})
     events=job['pen_events'];runs=[];start=None
     for event in events:
         if event['extrude']:start=event['time_s']

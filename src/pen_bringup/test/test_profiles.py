@@ -38,6 +38,14 @@ def test_named_yaml_discovery_image_mapping_and_hot_reload(tmp_path):
     assert catalog.resolve({'image': 'new.png'})['id'] == 'new_photo.yaml'
 
 
+def test_tylenol_images_select_their_own_profile_even_with_previous_selection():
+    root=Path(__file__).resolve().parents[3]
+    catalog=ProfileCatalog(root)
+    for image,expected,previous in [('sun.png','tylenol_sun.yaml','tylenol_moon.yaml'),
+                                    ('moon.png','tylenol_moon.yaml','tylenol_sun.yaml')]:
+        assert catalog.resolve({'image':image,'fallback_profile':previous})['id']==expected
+
+
 def test_ambiguity_and_no_arbitrary_profile_paths(tmp_path):
     save(tmp_path, 'one.yaml', 'same.png')
     save(tmp_path, 'two.yaml', 'same.png', surface='sphere')

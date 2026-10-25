@@ -160,6 +160,9 @@ def compile_drawing(drawing, *, surface='sphere', profile=None, execution_mode='
     recycle_interval = min(recycle_interval, _number(settings, 'recycle_planning_interval_s', recycle_interval, 1., 600.))
     continuous_strokes = settings.get('continuous_strokes', False)
     if type(continuous_strokes) is not bool:raise ValueError('continuous_strokes must be boolean')
+    local_speed_limits = profile.get('drawing', {}).get('local_speed_limits', False)
+    if type(local_speed_limits) is not bool:
+        raise ValueError('drawing.local_speed_limits must be boolean')
     recycle_pause = _number(pen, 'recycle_pause_s', 2., 0.02, 10.)
     if recycle_pause < release_delay:
         raise ValueError('Recycle pause must allow the full pen release delay')
@@ -357,7 +360,7 @@ def compile_drawing(drawing, *, surface='sphere', profile=None, execution_mode='
             recycle_count += 1
 
         if continuous_strokes:
-            from .continuous_stroke import rounded_stroke, StrokeTiming
+            from .continuous_stroke import rounded_stroke, StrokeTiming, LocalStrokeTiming
             arc,curve=rounded_stroke(points)
             # Interpolating the sampled curve linearly adds a velocity corner
             # at every sample. Use one C2 curve; all resulting poses still pass
@@ -371,9 +374,23 @@ def compile_drawing(drawing, *, surface='sphere', profile=None, execution_mode='
             curvature=float(np.linalg.norm(np.gradient(tangents,arc,axis=0),axis=1).max())
             curve_rotations=Rotation.from_matrix(np.array([pose(st,stand_off)[0][:3,:3] for st in curve]))
             angular_scale=float(((curve_rotations[:-1].inv()*curve_rotations[1:]).magnitude()/np.diff(arc)).max())
+            if local_speed_limits:
+                tangent_norms=np.maximum(1.,np.linalg.norm(tangents,axis=1))
+                curvatures=np.linalg.norm(np.gradient(tangents,arc,axis=0),axis=1)
+                angular_rates=(curve_rotations[:-1].inv()*curve_rotations[1:]).magnitude()/np.diff(arc)
+                angular_nodes=np.maximum(np.r_[angular_rates[0],angular_rates],
+                                         np.r_[angular_rates,angular_rates[-1]])
+                local_caps=np.minimum.reduce((speed/tangent_norms,
+                    np.sqrt(.35*acceleration/np.maximum(curvatures,1e-9)),
+                    angular_speed/np.maximum(angular_nodes,1e-9)))/1.1
             effective_speed=min(speed/tangent_scale, math.sqrt(.35*acceleration/max(curvature,1e-9)),
                                 angular_speed/max(angular_scale,1e-9))
             def stroke_timing(length):
+                if local_speed_limits:
+                    end=distance+length
+                    positions=np.r_[distance,arc[(arc>distance)&(arc<end)],end]
+                    return LocalStrokeTiming(positions-distance,np.interp(positions,arc,local_caps),
+                                             .35*acceleration/(tangent_scale*1.1**2))
                 return StrokeTiming(length,effective_speed/1.1,
                                     .35*acceleration/(tangent_scale*1.1**2))
             def continuous_duration(length):
@@ -607,6 +624,7 @@ def compile_drawing(drawing, *, surface='sphere', profile=None, execution_mode='
            'qualification': profile.get('qualification', {}), 'joint_routes': profile.get('routes', {}), 'duration_s': samples[-1]['time_s'],
            'sample_rate_hz': rate, 'samples': samples, 'pen_events': events,
            'motion_settings': {'draw_speed_m_s': speed*draw_scale, 'travel_speed_m_s': travel_speed*travel_scale,
+                               **({'local_speed_limits': True} if local_speed_limits else {}),
                                'pen_orientation': 'world_vertical_with_clearance_tilt',
                                'maximum_surface_normal_angle_deg': max_normal_angle,
                                'approach_speed_scale': approach_scale*travel_scale,

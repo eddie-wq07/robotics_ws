@@ -66,10 +66,10 @@ class WorkflowTest(unittest.TestCase):
             self.flow.prepare('owner', {'image': 'apple.png'})
 
     def test_tylenol_requires_its_profile_and_real_approval(self):
-        with self.assertRaisesRegex(WorkflowError, 'tylenol.yaml'):
+        with self.assertRaisesRegex(WorkflowError, 'tylenol_sun.yaml'):
             self.flow.prepare('owner', {'image': 'apple.png', 'surface': 'cylinder'})
         self.flow.mode = 'real'
-        with self.assertRaisesRegex(WorkflowError, 'tylenol.yaml'):
+        with self.assertRaisesRegex(WorkflowError, 'tylenol_sun.yaml'):
             self.flow.prepare('owner', {'image': 'apple.png', 'surface': 'cylinder'})
         self.assertEqual(self.bridge.calls, [])
         profile = self.root / 'tylenol.yaml'
