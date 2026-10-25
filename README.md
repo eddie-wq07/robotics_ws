@@ -1,3 +1,9 @@
+# TODOS
+
+- Eddie: Develop simple, effective pitch. 
+    Review entire repo
+
+
 # Flexiv 3D pen workspace
 
 The modular application turns an image into a surface-following drawing job, previews it in the browser, and executes through the existing ROS 2 controllers. The agreed design and commissioning boundary are in [docs/architecture.md](docs/architecture.md).

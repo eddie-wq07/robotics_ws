@@ -23,3 +23,14 @@ Current source, configuration profiles, scripts, dependency requirements,
 documentation, and reusable input/mesh assets are committed separately and do
 not require archive extraction. Build/install directories, virtual environments,
 dependency caches, nested Git metadata, and credentials are not included.
+
+## Supplemental snapshot
+
+`saved-runs-update-20261025T052657Z.tar.zst` preserves 16 run files created or updated while
+the initial upload was in progress. After extracting the base snapshot above,
+restore these newer versions from the repository root:
+
+```bash
+sha256sum -c assets/archives/saved-runs-update-20261025T052657Z.sha256
+tar --zstd -xf assets/archives/saved-runs-update-20261025T052657Z.tar.zst
+```
