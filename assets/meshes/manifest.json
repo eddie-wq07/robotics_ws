@@ -1,0 +1,197 @@
+{
+  "document_url": "https://cad.onshape.com/documents/618b5d2bd89bee4efe7c7a72/w/61ea072912c4caea42eb5a8b/e/67d428c6e2b198ed7d60f6ff",
+  "exported_at": "2026-10-23",
+  "export_settings": "STL, Binary, Meter, Fine; original Z-up; include hidden parts",
+  "assets": [
+    {
+      "name": "flat",
+      "file": "flat.stl",
+      "export_member": "flat - Part 1.stl",
+      "units": "m",
+      "sha256": "12db2ee6b42328e074819f8ff9da45819752011d1f767b73351dca70786bb0bb",
+      "triangles": 2364,
+      "bounds_m": [
+        [
+          -0.03999999910593033,
+          -0.05000000074505806,
+          0.0
+        ],
+        [
+          0.03999999910593033,
+          0.05000000074505806,
+          0.0024999999441206455
+        ]
+      ],
+      "watertight": true
+    },
+    {
+      "name": "cylinder",
+      "file": "cylinder.stl",
+      "export_member": "cylinder - Part 1.stl",
+      "units": "m",
+      "sha256": "45c6009e03cc7c41f639c3e55ed732ff581e7444d5c867d3c00348560889a965",
+      "triangles": 1750,
+      "bounds_m": [
+        [
+          -0.03999999910593033,
+          -0.03999999910593033,
+          0.0
+        ],
+        [
+          0.03999999910593033,
+          0.03999999910593033,
+          0.09200000017881393
+        ]
+      ],
+      "watertight": true
+    },
+    {
+      "name": "sphere",
+      "file": "sphere.stl",
+      "export_member": "sphere - Part 1.stl",
+      "units": "m",
+      "sha256": "c5911415f6d86aff1ec155cba07f3dc3807f1d36a2824ff9d635a7e4fbcc3405",
+      "triangles": 22924,
+      "bounds_m": [
+        [
+          -0.03999999910593033,
+          -0.05000000074505806,
+          -0.03999999910593033
+        ],
+        [
+          0.03999999910593033,
+          0.05000000074505806,
+          0.03999999910593033
+        ]
+      ],
+      "watertight": true
+    },
+    {
+      "name": "jig",
+      "file": "jig.stl",
+      "export_member": "jig - Part 1.stl",
+      "units": "m",
+      "sha256": "c577f52b159687ea5f6f087bc48f9e7a2cb2ca4d1d186eb17d94fef2f0bb43c0",
+      "triangles": 46220,
+      "bounds_m": [
+        [
+          -0.10499999672174454,
+          -0.05999999865889549,
+          0.0
+        ],
+        [
+          0.10499999672174454,
+          0.05999999865889549,
+          0.07500000298023224
+        ]
+      ],
+      "watertight": true
+    },
+    {
+      "name": "pen_holder",
+      "file": "pen_holder.stl",
+      "export_member": "pen_holder - Part 1.stl",
+      "units": "m",
+      "sha256": "988434780612557cd766707dc25cedc5ef8ebe1f70954402508f0b648eb5cdfd",
+      "triangles": 8882,
+      "bounds_m": [
+        [
+          -0.08500000089406967,
+          -0.03150000050663948,
+          -0.05999999865889549
+        ],
+        [
+          0.10379999876022339,
+          0.03599391132593155,
+          0.042500000447034836
+        ]
+      ],
+      "watertight": true
+    },
+    {
+      "name": "tab",
+      "file": "tab.stl",
+      "export_member": "tab - Part 1.stl",
+      "units": "m",
+      "sha256": "65f18568a44f17ac4267f8ecac00b1dd3183293801bccd9ae0e4d949dfca9167",
+      "triangles": 1748,
+      "bounds_m": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.035999998450279236,
+          0.02199999988079071,
+          0.004000000189989805
+        ]
+      ],
+      "watertight": true
+    },
+    {
+      "name": "pen",
+      "file": "pen.stl",
+      "export_member": "3D_Pen_decimated - Part 1.stl",
+      "units": "m",
+      "sha256": "c4e2fc9644598ea7ac6d06144555383c4ba51bfd42cd93b71b2ce2852144a07a",
+      "triangles": 79996,
+      "bounds_m": [
+        [
+          -0.09668280184268951,
+          -0.009974800050258636,
+          -0.012021413072943687
+        ],
+        [
+          0.09668280184268951,
+          0.009974800050258636,
+          0.012021413072943687
+        ]
+      ],
+      "watertight": true
+    },
+    {
+      "name": "pen_holder_combined",
+      "file": "pen_holder_combined.stl",
+      "units": "m",
+      "sha256": "42303ac30785330238db1a7bc1e03704852edd3760e00e2315c8a09dd84da257",
+      "triangles": 88570,
+      "bounds_m": [
+        [
+          -0.12090899658203125,
+          -0.0315,
+          -0.06
+        ],
+        [
+          0.10379999542236329,
+          0.03599391174316406,
+          0.0425
+        ]
+      ],
+      "watertight": true,
+      "source_file": "/home/ubuntu/Downloads/pen_holder_combined.stl",
+      "source_sha256": "26751a0964e0fa803e7d3b0c66811570a552ed6797662a9e24dcf055541cf8de",
+      "source_units": "mm",
+      "conversion": "Uniform scale 0.001; preserves assembled holder and pen orientation."
+    }
+  ],
+  "assembly_stl_members": [
+    {
+      "export_member": "Assembly 1 - Part 1.stl",
+      "same_geometry_as": "flat.stl"
+    },
+    {
+      "export_member": "Assembly 1 - Part 1 (1).stl",
+      "same_geometry_as": "sphere.stl"
+    },
+    {
+      "export_member": "Assembly 1 - Part 1 (2).stl",
+      "same_geometry_as": "cylinder.stl"
+    },
+    {
+      "export_member": "Assembly 1 - Part 1 (3).stl",
+      "same_geometry_as": "jig.stl"
+    }
+  ],
+  "placement_status": "STL exports are in part-local coordinates. Robot-base and flange placements are not calibrated. Assembly STL export does not preserve occurrence transforms."
+}

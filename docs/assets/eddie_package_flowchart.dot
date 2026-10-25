@@ -1,0 +1,37 @@
+digraph packages {
+graph [rankdir=TB, bgcolor="#0d1117", pad="0.3", nodesep="0.5", ranksep="0.8", splines=polyline, fontname="DejaVu Sans"];
+node [shape=box, style="rounded,filled", fillcolor="#172b42", color="#79b8ff", fontcolor="#f0f6fc", fontname="DejaVu Sans", fontsize=14, margin="0.18,0.12"];
+edge [fontname="DejaVu Sans", fontsize=10, color="#8cc8ff", fontcolor="#e6edf3", arrowsize=0.7];
+IMAGE [label="pen_image_processing", fillcolor="#172b42"];
+TOOLPATH [label="pen_toolpath", fillcolor="#172b42"];
+SURFACE [label="pen_surface_geometry", fillcolor="#172b42"];
+DESCRIPTION [label="pen_description", fillcolor="#172b42"];
+EXECUTION [label="pen_execution", fillcolor="#172b42"];
+INTERFACES [label="pen_interfaces", fillcolor="#172b42"];
+BRINGUP [label="pen_bringup", fillcolor="#172b42"];
+MANAGER [label="controller_manager", fillcolor="#252b35"];
+CARTESIAN [label="flexiv_cartesian_controller", fillcolor="#252b35"];
+JOINT [label="joint_trajectory_controller", fillcolor="#252b35"];
+HARDWARE [label="flexiv_hardware", fillcolor="#252b35"];
+VENDOR_DESCRIPTION [label="flexiv_description", fillcolor="#252b35"];
+IMAGE -> TOOLPATH [label="2D drawing"];
+SURFACE -> TOOLPATH [label="Geometry functions"];
+DESCRIPTION -> TOOLPATH [label="Frames and\ncalibration profiles"];
+TOOLPATH -> EXECUTION [label="Reviewed timed job;\nexplicit execution request"];
+INTERFACES -> IMAGE [label="Shared contracts", style=dashed, color="#8f9eaf", fontcolor="#b9c5d3"];
+INTERFACES -> TOOLPATH [label="Shared contracts", style=dashed, color="#8f9eaf", fontcolor="#b9c5d3"];
+INTERFACES -> EXECUTION [label="Shared contracts", style=dashed, color="#8f9eaf", fontcolor="#b9c5d3"];
+BRINGUP -> IMAGE [label="Launch and\nconfiguration", style=dashed, color="#8f9eaf", fontcolor="#b9c5d3"];
+BRINGUP -> TOOLPATH [label="Launch and\nconfiguration", style=dashed, color="#8f9eaf", fontcolor="#b9c5d3"];
+BRINGUP -> EXECUTION [label="Launch and\nconfiguration", style=dashed, color="#8f9eaf", fontcolor="#b9c5d3"];
+BRINGUP -> MANAGER [label="Launch and\nconfiguration", style=dashed, color="#8f9eaf", fontcolor="#b9c5d3"];
+EXECUTION -> MANAGER [label="Exclusive controller switching", style=dashed, color="#8f9eaf", fontcolor="#b9c5d3"];
+EXECUTION -> CARTESIAN [label="Cartesian targets"];
+EXECUTION -> JOINT [label="Qualified joint trajectories"];
+CARTESIAN -> HARDWARE [label="Command and\nstate interfaces"];
+JOINT -> HARDWARE [label="Command and\nstate interfaces"];
+VENDOR_DESCRIPTION -> DESCRIPTION [label="Vendor robot model"];
+{rank=same; INTERFACES; BRINGUP; VENDOR_DESCRIPTION;}
+{rank=same; IMAGE; SURFACE; DESCRIPTION;}
+{rank=same; MANAGER; CARTESIAN; JOINT;}
+}

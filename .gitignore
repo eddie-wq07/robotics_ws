@@ -1,7 +1,14 @@
-# Track workspace source and this policy only.
+# Track workspace source, documentation, and reusable project assets.
 /*
 !/.gitignore
+!/.gitattributes
+!/README.md
+!/docs/
+!/assets/
 !/src/
+
+# Generated drawing runs and preview caches stay local.
+/assets/outputs/
 
 # Preserve nested repositories locally; never commit their Git metadata.
 /src/**/.git
